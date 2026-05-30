@@ -1,0 +1,5 @@
+com/charging/service/RepairServiceTest.class
+com/charging/service/ChargerServiceTest.class
+com/charging/service/BillingServiceTest.class
+com/charging/service/StatisticsServiceTest.class
+com/charging/service/ChargingServiceTest.class
