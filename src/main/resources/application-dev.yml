@@ -1,8 +1,8 @@
 spring:
   datasource:
     url: jdbc:postgresql://localhost:5432/charging_station
-    username: postgres
-    password: postgres
+    username: cs_user
+    password: dev_password_123
     driver-class-name: org.postgresql.Driver
 
   data:
