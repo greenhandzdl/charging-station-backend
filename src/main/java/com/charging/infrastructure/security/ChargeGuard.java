@@ -3,6 +3,7 @@ package com.charging.infrastructure.security;
 import com.charging.entity.ChargeRecord;
 import com.charging.mapper.ChargeRecordMapper;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Component;
 
 import java.util.Optional;
@@ -23,23 +24,27 @@ public class ChargeGuard {
      * - Normal users can only stop their own records
      * - ADMIN/SUPER_ADMIN can stop any record
      */
-    public boolean canStop(JwtUserPrincipal principal, String recordIdStr) {
-        if (principal == null || recordIdStr == null) {
+    public boolean canStop(Authentication authentication, UUID recordId) {
+        if (authentication == null || recordId == null) {
+            return false;
+        }
+
+        Object principal = authentication.getPrincipal();
+        if (!(principal instanceof JwtUserPrincipal jwtPrincipal)) {
             return false;
         }
 
         // ADMIN and SUPER_ADMIN can stop any record
-        if ("ADMIN".equalsIgnoreCase(principal.getRole())
-                || "SUPER_ADMIN".equalsIgnoreCase(principal.getRole())) {
+        if ("ADMIN".equalsIgnoreCase(jwtPrincipal.getRole())
+                || "SUPER_ADMIN".equalsIgnoreCase(jwtPrincipal.getRole())) {
             return true;
         }
 
         // Normal users must own the record
         try {
-            UUID recordId = UUID.fromString(recordIdStr);
             Optional<ChargeRecord> record = chargeRecordMapper.findById(recordId);
             return record.isPresent()
-                    && record.get().getUserId().toString().equals(principal.getUserId());
+                    && record.get().getUserId().toString().equals(jwtPrincipal.getUserId());
         } catch (IllegalArgumentException e) {
             return false;
         }
