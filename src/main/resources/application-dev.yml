@@ -8,7 +8,7 @@ spring:
   data:
     redis:
       host: localhost
-      port: 30002
+      port: 6379
 
 jwt:
   secret: dev-secret-key-not-for-production-use-32chars!!
