@@ -1,6 +1,6 @@
 spring:
   datasource:
-    url: jdbc:postgresql://localhost:5432/charging_station
+    url: jdbc:postgresql://localhost:30001/charging_station
     username: cs_user
     password: dev_password_123
     driver-class-name: org.postgresql.Driver
@@ -8,7 +8,7 @@ spring:
   data:
     redis:
       host: localhost
-      port: 6379
+      port: 30002
 
 jwt:
   secret: dev-secret-key-not-for-production-use-32chars!!
