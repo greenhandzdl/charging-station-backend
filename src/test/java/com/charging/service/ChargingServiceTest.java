@@ -91,7 +91,7 @@ class ChargingServiceTest {
         when(userMapper.findById(userId)).thenReturn(Optional.of(testUser));
         when(chargerMapper.findById(chargerId)).thenReturn(Optional.of(testCharger));
         when(chargeRecordMapper.countProcessingByUserId(userId)).thenReturn(0);
-        when(chargerMapper.updateStatusConditionally(chargerId, "charging", "idle")).thenReturn(1);
+        when(chargerMapper.updateStatusConditionally(chargerId, "CHARGING", "IDLE")).thenReturn(1);
 
         StartChargeRequest request = StartChargeRequest.builder()
                 .chargerId(chargerId)
@@ -101,7 +101,7 @@ class ChargingServiceTest {
 
         assertNotNull(response);
         assertNotNull(response.getRecordId());
-        assertEquals("processing", response.getStatus());
+        assertEquals("PROCESSING", response.getStatus());
     }
 
     @Test
@@ -165,7 +165,7 @@ class ChargingServiceTest {
         ChargeResponse response = chargingService.stopCharge(userId, "USER", request);
 
         assertNotNull(response);
-        assertEquals("completed", response.getStatus());
+        assertEquals("COMPLETED", response.getStatus());
         verify(paymentService).autoDeduct(any(), any(), any());
     }
 
@@ -191,7 +191,7 @@ class ChargingServiceTest {
         ChargeResponse response = chargingService.forceStop(UUID.randomUUID(), recordId, request, "127.0.0.1");
 
         assertNotNull(response);
-        assertEquals("completed", response.getStatus());
+        assertEquals("COMPLETED", response.getStatus());
     }
 
     @Test
@@ -217,7 +217,7 @@ class ChargingServiceTest {
         ChargeResponse response = chargingService.stopCharge(userId, "USER", request);
 
         assertNotNull(response);
-        assertEquals("completed", response.getStatus());
+        assertEquals("COMPLETED", response.getStatus());
         verify(userMapper).freezeAccount(userId);
     }
 

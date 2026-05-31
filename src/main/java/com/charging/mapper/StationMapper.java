@@ -24,6 +24,9 @@ public interface StationMapper {
             "charger_count = #{chargerCount}, status = #{status}, updated_at = now() WHERE id = #{id}")
     int update(Station station);
 
+    @Select("SELECT * FROM stations WHERE name ILIKE '%' || #{name} || '%'")
+    List<Station> searchByName(String name);
+
     @Delete("DELETE FROM stations WHERE id = #{id}")
     int deleteById(UUID id);
 }

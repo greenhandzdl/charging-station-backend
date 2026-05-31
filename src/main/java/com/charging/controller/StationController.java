@@ -29,13 +29,19 @@ public class StationController {
     // ===== Station CRUD =====
 
     @GetMapping("/stations")
-    @PreAuthorize("hasAnyRole('ADMIN', 'SUPER_ADMIN')")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<List<Station>> listStations() {
         return ResponseEntity.ok(stationMapper.findAll());
     }
 
+    @GetMapping("/stations/search")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<List<Station>> searchStations(@RequestParam String name) {
+        return ResponseEntity.ok(stationMapper.searchByName(name));
+    }
+
     @GetMapping("/stations/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'SUPER_ADMIN')")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<Station> getStation(@PathVariable UUID id) {
         return stationMapper.findById(id)
                 .map(ResponseEntity::ok)
@@ -86,7 +92,7 @@ public class StationController {
     // ===== Charger CRUD =====
 
     @GetMapping("/chargers")
-    @PreAuthorize("hasAnyRole('ADMIN', 'SUPER_ADMIN')")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<List<Charger>> listChargers(@RequestParam(required = false) UUID stationId) {
         if (stationId != null) {
             return ResponseEntity.ok(chargerMapper.findByStationId(stationId));
@@ -95,9 +101,17 @@ public class StationController {
     }
 
     @GetMapping("/chargers/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'SUPER_ADMIN')")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<Charger> getCharger(@PathVariable UUID id) {
         return chargerMapper.findById(id)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    @GetMapping("/chargers/by-code/{code}")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<Charger> getChargerByCode(@PathVariable String code) {
+        return chargerMapper.findByChargerCode(code)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }

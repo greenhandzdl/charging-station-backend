@@ -79,7 +79,7 @@ public class ChargingServiceImpl implements ChargingService {
         }
 
         // Lock charger (optimistic write)
-        int updated = chargerMapper.updateStatusConditionally(chargerId, "charging", "idle");
+        int updated = chargerMapper.updateStatusConditionally(chargerId, "CHARGING", "IDLE");
         if (updated == 0) {
             throw BusinessException.conflict("充电桩已被占用");
         }
@@ -101,7 +101,7 @@ public class ChargingServiceImpl implements ChargingService {
                 .id(UUID.randomUUID())
                 .actorId(userId)
                 .actorType("user")
-                .action("start_charge")
+                .action("START_CHARGE")
                 .resource("charger")
                 .resourceId(chargerId)
                 .build());
@@ -109,7 +109,7 @@ public class ChargingServiceImpl implements ChargingService {
         return ChargeResponse.builder()
                 .recordId(record.getId())
                 .startTime(record.getStartTime())
-                .status("processing")
+                .status("PROCESSING")
                 .message("充电已启动")
                 .build();
     }
@@ -144,7 +144,7 @@ public class ChargingServiceImpl implements ChargingService {
 
         if (user.getBalance().compareTo(fee) >= 0) {
             // Sufficient balance - deduct
-            chargeRecordMapper.completeRecord(recordId, energyKwh, fee, "paid");
+            chargeRecordMapper.completeRecord(recordId, energyKwh, fee, "PAID");
 
             int deductResult = userMapper.deductBalance(userId, fee);
             if (deductResult > 0) {
@@ -159,27 +159,27 @@ public class ChargingServiceImpl implements ChargingService {
                         .id(UUID.randomUUID())
                         .actorId(userId)
                         .actorType("user")
-                        .action("stop_charge_deducted")
+                        .action("STOP_CHARGE_DEDUCTED")
                         .resource("charge_record")
                         .resourceId(recordId)
                         .build());
             } else {
                 // Concurrent deduction issue - treat as arrears
-                chargeRecordMapper.updateDeductionStatus(recordId, "arrears");
+                chargeRecordMapper.updateDeductionStatus(recordId, "ARREARS");
                 userMapper.freezeAccount(userId);
                 deductionStatus = DeductionStatus.ARREARS;
                 auditLogMapper.insert(AuditLog.builder()
                         .id(UUID.randomUUID())
                         .actorId(userId)
                         .actorType("system")
-                        .action("charge_arrears")
+                        .action("CHARGE_ARREARS")
                         .resource("charge_record")
                         .resourceId(recordId)
                         .build());
             }
         } else {
             // Insufficient balance - mark arrears
-            chargeRecordMapper.completeRecord(recordId, energyKwh, fee, "arrears");
+            chargeRecordMapper.completeRecord(recordId, energyKwh, fee, "ARREARS");
             userMapper.freezeAccount(userId);
             deductionStatus = DeductionStatus.ARREARS;
 
@@ -187,21 +187,21 @@ public class ChargingServiceImpl implements ChargingService {
                     .id(UUID.randomUUID())
                     .actorId(userId)
                     .actorType("user")
-                    .action("charge_arrears")
+                    .action("CHARGE_ARREARS")
                     .resource("charge_record")
                     .resourceId(recordId)
                     .build());
         }
 
         // Release charger
-        chargerMapper.updateStatusConditionally(charger.getId(), "idle", "charging");
+        chargerMapper.updateStatusConditionally(charger.getId(), "IDLE", "CHARGING");
 
         return ChargeResponse.builder()
                 .recordId(recordId)
                 .endTime(LocalDateTime.now())
                 .energyKwh(energyKwh)
                 .fee(fee)
-                .status("completed")
+                .status("COMPLETED")
                 .deductionStatus(deductionStatus.name().toLowerCase())
                 .message(balanceSufficient ? "充电完成，已扣费" : "余额不足，已标记欠费")
                 .build();
@@ -239,7 +239,7 @@ public class ChargingServiceImpl implements ChargingService {
 
         if (user.getBalance().compareTo(fee) >= 0) {
             // Deduct
-            chargeRecordMapper.completeRecord(recordId, energyKwh, fee, "paid");
+            chargeRecordMapper.completeRecord(recordId, energyKwh, fee, "PAID");
             int deductResult = userMapper.deductBalance(record.getUserId(), fee);
             if (deductResult > 0) {
                 deductionStatus = DeductionStatus.PAID;
@@ -248,7 +248,7 @@ public class ChargingServiceImpl implements ChargingService {
                         .id(UUID.randomUUID())
                         .actorId(adminId)
                         .actorType("admin")
-                        .action("force_stop")
+                        .action("FORCE_STOP")
                         .resource("charge_record")
                         .resourceId(recordId)
                         .payload("{\"reason\": \"" + reason + "\"}")
@@ -256,14 +256,14 @@ public class ChargingServiceImpl implements ChargingService {
                         .build());
             } else {
                 // Fall through to arrears
-                chargeRecordMapper.updateDeductionStatus(recordId, "arrears");
+                chargeRecordMapper.updateDeductionStatus(recordId, "ARREARS");
                 userMapper.freezeAccount(record.getUserId());
                 deductionStatus = DeductionStatus.ARREARS;
                 auditLogMapper.insert(AuditLog.builder()
                         .id(UUID.randomUUID())
                         .actorId(adminId)
                         .actorType("admin")
-                        .action("force_stop_arrears")
+                        .action("FORCE_STOP_ARREARS")
                         .resource("charge_record")
                         .resourceId(recordId)
                         .payload("{\"reason\": \"" + reason + "\", \"deductionStatus\": \"arrears\"}")
@@ -272,14 +272,14 @@ public class ChargingServiceImpl implements ChargingService {
             }
         } else {
             // Arrears
-            chargeRecordMapper.completeRecord(recordId, energyKwh, fee, "arrears");
+            chargeRecordMapper.completeRecord(recordId, energyKwh, fee, "ARREARS");
             userMapper.freezeAccount(record.getUserId());
             deductionStatus = DeductionStatus.ARREARS;
             auditLogMapper.insert(AuditLog.builder()
                     .id(UUID.randomUUID())
                     .actorId(adminId)
                     .actorType("admin")
-                    .action("force_stop_arrears")
+                    .action("FORCE_STOP_ARREARS")
                     .resource("charge_record")
                     .resourceId(recordId)
                     .payload("{\"reason\": \"" + reason + "\", \"deductionStatus\": \"arrears\"}")
@@ -288,14 +288,14 @@ public class ChargingServiceImpl implements ChargingService {
         }
 
         // Release charger
-        chargerMapper.updateStatusConditionally(charger.getId(), "idle", "charging");
+        chargerMapper.updateStatusConditionally(charger.getId(), "IDLE", "CHARGING");
 
         return ChargeResponse.builder()
                 .recordId(recordId)
                 .endTime(LocalDateTime.now())
                 .energyKwh(energyKwh)
                 .fee(fee)
-                .status("completed")
+                .status("COMPLETED")
                 .deductionStatus(deductionStatus.name().toLowerCase())
                 .message("已强制结束充电")
                 .build();
@@ -303,38 +303,42 @@ public class ChargingServiceImpl implements ChargingService {
 
     @Override
     public List<Map<String, Object>> queryCharges(UUID userId, String userRole, Map<String, String> params) {
-        List<ChargeRecord> records;
         boolean isAdmin = "ADMIN".equals(userRole) || "SUPER_ADMIN".equals(userRole);
 
         String status = params.get("status");
+        List<Map<String, Object>> records;
         if (isAdmin) {
             if (status != null) {
-                records = chargeRecordMapper.findByUserIdAndStatus(null, status);
-                // fall back to all
-                records = chargeRecordMapper.findAll();
+                records = chargeRecordMapper.findEnrichedByStatus(status);
             } else {
-                records = chargeRecordMapper.findAll();
+                records = chargeRecordMapper.findEnrichedAll();
             }
         } else {
             if (status != null) {
-                records = chargeRecordMapper.findByUserIdAndStatus(userId, status);
+                // Filter in memory since enriched query filters by status unconditionally
+                records = chargeRecordMapper.findEnrichedByUserId(userId);
+                records.removeIf(r -> !status.equalsIgnoreCase((String) r.get("status")));
             } else {
-                records = chargeRecordMapper.findByUserId(userId);
+                records = chargeRecordMapper.findEnrichedByUserId(userId);
             }
         }
 
         List<Map<String, Object>> result = new ArrayList<>();
-        for (ChargeRecord r : records) {
+        for (Map<String, Object> r : records) {
             Map<String, Object> m = new LinkedHashMap<>();
-            m.put("id", r.getId());
-            m.put("userId", r.getUserId());
-            m.put("chargerId", r.getChargerId());
-            m.put("startTime", r.getStartTime());
-            m.put("endTime", r.getEndTime());
-            m.put("energyKwh", r.getEnergyKwh());
-            m.put("fee", r.getFee());
-            m.put("status", r.getStatus().name().toLowerCase());
-            m.put("deductionStatus", r.getDeductionStatus().name().toLowerCase());
+            m.put("id", r.get("id"));
+            m.put("userId", r.get("user_id"));
+            m.put("chargerId", r.get("charger_id"));
+            m.put("startTime", r.get("start_time"));
+            m.put("endTime", r.get("end_time"));
+            m.put("energyKwh", r.get("energy_kwh"));
+            m.put("fee", r.get("fee"));
+            m.put("status", r.get("status"));
+            m.put("deductionStatus", r.get("deduction_status"));
+            m.put("userName", r.get("user_name"));
+            m.put("plateNumber", r.get("plate_number"));
+            m.put("chargerCode", r.get("charger_code"));
+            m.put("stationName", r.get("station_name"));
             result.add(m);
         }
         return result;

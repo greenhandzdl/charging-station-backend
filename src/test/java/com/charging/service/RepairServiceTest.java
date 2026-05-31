@@ -69,9 +69,9 @@ class RepairServiceTest {
         RepairResponse response = repairService.submit(userId, request);
 
         assertNotNull(response);
-        assertEquals("open", response.getStatus());
+        assertEquals("OPEN", response.getStatus());
         verify(repairMapper).insert(any(Repair.class));
-        verify(chargerMapper).updateStatusConditionally(chargerId, "fault", "idle");
+        verify(chargerMapper).updateStatusConditionally(chargerId, "FAULT", "IDLE");
     }
 
     @Test

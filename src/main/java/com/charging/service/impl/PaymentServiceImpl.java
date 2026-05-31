@@ -70,7 +70,7 @@ public class PaymentServiceImpl implements PaymentService {
         return RechargeResponse.builder()
                 .paymentId(payment.getId().toString())
                 .redirectUrl("/mock-gateway/" + payment.getId())
-                .status("pending")
+                .status("PENDING")
                 .build();
     }
 
@@ -105,7 +105,7 @@ public class PaymentServiceImpl implements PaymentService {
                     .id(UUID.randomUUID())
                     .actorId(null)
                     .actorType("system")
-                    .action("callback_signature_failed")
+                    .action("CALLBACK_SIGNATURE_FAILED")
                     .resource("payment")
                     .resourceId(paymentId)
                     .payload("{\"paymentId\": \"" + paymentId + "\"}")
@@ -133,7 +133,7 @@ public class PaymentServiceImpl implements PaymentService {
                 .id(UUID.randomUUID())
                 .actorId(payment.getUserId())
                 .actorType("user")
-                .action("recharge")
+                .action("RECHARGE")
                 .resource("payment")
                 .resourceId(paymentId)
                 .build());
@@ -169,7 +169,7 @@ public class PaymentServiceImpl implements PaymentService {
                 .id(UUID.randomUUID())
                 .actorId(userId)
                 .actorType("system")
-                .action("deduct")
+                .action("DEDUCT")
                 .resource("charge_record")
                 .resourceId(chargeRecordId)
                 .build());
@@ -179,6 +179,73 @@ public class PaymentServiceImpl implements PaymentService {
      * Auto-deduct arrears when user recharges.
      * Processes arrears records in order, deducting from new balance.
      */
+    @Override
+    @Transactional
+    public void payArrears(UUID userId, UUID recordId, String method) {
+        // Find charge record
+        ChargeRecord record = chargeRecordMapper.findById(recordId)
+                .orElseThrow(() -> BusinessException.notFound("ChargeRecord", recordId.toString()));
+
+        // Verify it belongs to this user
+        if (!record.getUserId().equals(userId)) {
+            throw BusinessException.forbidden("无权操作该记录");
+        }
+
+        // Verify it's in arrears
+        if (record.getDeductionStatus() != com.charging.enums.DeductionStatus.ARREARS) {
+            throw BusinessException.badRequest("该记录不是欠费状态");
+        }
+
+        BigDecimal fee = record.getFee();
+        if (fee == null) {
+            throw BusinessException.badRequest("费用为空");
+        }
+
+        // Deduct from user balance
+        User user = userMapper.findByIdWithLock(userId)
+                .orElseThrow(() -> BusinessException.notFound("User", userId.toString()));
+        if (user.getBalance().compareTo(fee) < 0) {
+            throw BusinessException.insufficientBalance(user.getBalance(), fee);
+        }
+
+        int deductResult = userMapper.deductBalance(userId, fee);
+        if (deductResult == 0) {
+            throw BusinessException.conflict("扣款失败，请重试");
+        }
+
+        // Update charge record deduction status
+        chargeRecordMapper.updateDeductionStatus(recordId, "PAID");
+
+        // Create payment record
+        Payment payment = Payment.builder()
+                .id(UUID.randomUUID())
+                .userId(userId)
+                .chargeRecordId(recordId)
+                .method(method)
+                .amount(fee)
+                .status(com.charging.enums.PaymentStatus.SUCCESS)
+                .createdAt(LocalDateTime.now())
+                .build();
+        paymentMapper.insert(payment);
+
+        // Audit log
+        auditLogMapper.insert(AuditLog.builder()
+                .id(UUID.randomUUID())
+                .actorId(userId)
+                .actorType("user")
+                .action("pay_arrears")
+                .resource("charge_record")
+                .resourceId(recordId)
+                .payload("{\"method\": \"" + method + "\", \"amount\": " + fee + "}")
+                .build());
+
+        // Check if all arrears cleared - unfreeze
+        List<ChargeRecord> remainingArrears = chargeRecordMapper.findArrearsByUserId(userId);
+        if (remainingArrears.isEmpty()) {
+            userMapper.unfreezeAccount(userId);
+        }
+    }
+
     @Transactional
     protected void autoDeductArrears(UUID userId) {
         List<ChargeRecord> arrearsRecords = chargeRecordMapper.findArrearsByUserIdWithLock(userId);
@@ -192,7 +259,7 @@ public class PaymentServiceImpl implements PaymentService {
                 // Deduct
                 int result = userMapper.deductBalance(userId, fee);
                 if (result > 0) {
-                    chargeRecordMapper.updateDeductionStatus(arrears.getId(), "paid");
+                    chargeRecordMapper.updateDeductionStatus(arrears.getId(), "PAID");
 
                     Payment payment = Payment.builder()
                             .id(UUID.randomUUID())
@@ -209,7 +276,7 @@ public class PaymentServiceImpl implements PaymentService {
                             .id(UUID.randomUUID())
                             .actorId(userId)
                             .actorType("system")
-                            .action("arrears_auto_deduct")
+                            .action("ARREARS_AUTO_DEDUCT")
                             .resource("charge_record")
                             .resourceId(arrears.getId())
                             .build());

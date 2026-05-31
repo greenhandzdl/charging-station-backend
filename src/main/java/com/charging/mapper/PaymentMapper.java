@@ -29,14 +29,14 @@ public interface PaymentMapper {
     @Select("SELECT status FROM payments WHERE id = #{id}")
     String findStatusById(UUID id);
 
-    @Update("UPDATE payments SET status = 'success', gateway_tx_id = #{txId} WHERE id = #{id} AND status = 'pending'")
+    @Update("UPDATE payments SET status = 'SUCCESS', gateway_tx_id = #{txId} WHERE id = #{id} AND status = 'PENDING'")
     int markSuccess(@Param("id") UUID id, @Param("txId") String txId);
 
-    @Update("UPDATE payments SET status = 'failed' WHERE id = #{id}")
+    @Update("UPDATE payments SET status = 'FAILED' WHERE id = #{id}")
     int markFailed(UUID id);
 
     // Statistics
-    @Select("SELECT COALESCE(SUM(amount), 0) FROM payments WHERE status = 'success' AND created_at >= #{start} AND created_at < #{end}")
+    @Select("SELECT COALESCE(SUM(amount), 0) FROM payments WHERE status = 'SUCCESS' AND created_at >= #{start} AND created_at < #{end}")
     java.math.BigDecimal sumSuccessAmountByDateRange(@Param("start") java.time.LocalDateTime start,
                                                      @Param("end") java.time.LocalDateTime end);
 }

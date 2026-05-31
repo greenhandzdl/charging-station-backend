@@ -1,7 +1,9 @@
 package com.charging.service.impl;
 
 import com.charging.entity.AuditLog;
+import com.charging.entity.Charger;
 import com.charging.entity.Repair;
+import com.charging.entity.User;
 import com.charging.enums.ChargerStatus;
 import com.charging.enums.RepairStatus;
 import com.charging.exception.BusinessException;
@@ -9,6 +11,7 @@ import com.charging.infrastructure.dto.*;
 import com.charging.mapper.AuditLogMapper;
 import com.charging.mapper.ChargerMapper;
 import com.charging.mapper.RepairMapper;
+import com.charging.mapper.UserMapper;
 import com.charging.service.ChargerService;
 import com.charging.service.RepairService;
 import lombok.RequiredArgsConstructor;
@@ -31,6 +34,7 @@ public class RepairServiceImpl implements RepairService {
     private final ChargerMapper chargerMapper;
     private final AuditLogMapper auditLogMapper;
     private final ChargerService chargerService;
+    private final UserMapper userMapper;
 
     @Override
     @Transactional
@@ -48,21 +52,21 @@ public class RepairServiceImpl implements RepairService {
         repairMapper.insert(repair);
 
         // Update charger status to fault (only if currently idle or fault)
-        chargerMapper.updateStatusConditionally(request.getChargerId(), "fault", "idle");
+        chargerMapper.updateStatusConditionally(request.getChargerId(), "FAULT", "IDLE");
 
         // Audit log
         auditLogMapper.insert(AuditLog.builder()
                 .id(UUID.randomUUID())
                 .actorId(userId)
                 .actorType("user")
-                .action("submit_repair")
+                .action("SUBMIT_REPAIR")
                 .resource("charger")
                 .resourceId(request.getChargerId())
                 .build());
 
         return RepairResponse.builder()
                 .id(repair.getId())
-                .status("open")
+                .status("OPEN")
                 .build();
     }
 
@@ -86,13 +90,28 @@ public class RepairServiceImpl implements RepairService {
 
         List<RepairResponse> responses = new ArrayList<>();
         for (Repair r : repairs) {
+            String reporterName = null;
+            String handlerName = null;
+            String chargerCode = null;
+
+            if (r.getReporterId() != null) {
+                reporterName = userMapper.findById(r.getReporterId()).map(User::getName).orElse(null);
+            }
+            if (r.getHandledBy() != null) {
+                handlerName = userMapper.findById(r.getHandledBy()).map(User::getName).orElse(null);
+            }
+            chargerCode = chargerMapper.findById(r.getChargerId()).map(Charger::getChargerCode).orElse(null);
+
             responses.add(RepairResponse.builder()
                     .id(r.getId())
                     .chargerId(r.getChargerId())
+                    .chargerCode(chargerCode)
                     .reporterId(r.getReporterId())
+                    .reporterName(reporterName)
                     .description(r.getDescription())
                     .status(r.getStatus().name().toLowerCase())
                     .handledBy(r.getHandledBy())
+                    .handlerName(handlerName)
                     .reportedAt(r.getReportedAt())
                     .handledAt(r.getHandledAt())
                     .rejectReason(r.getRejectReason())
@@ -118,7 +137,7 @@ public class RepairServiceImpl implements RepairService {
                 .id(UUID.randomUUID())
                 .actorId(adminId)
                 .actorType("admin")
-                .action("assign_repair")
+                .action("ASSIGN_REPAIR")
                 .resource("repair")
                 .resourceId(repairId)
                 .build());
@@ -146,7 +165,7 @@ public class RepairServiceImpl implements RepairService {
                 .id(UUID.randomUUID())
                 .actorId(userId)
                 .actorType(actorType)
-                .action("resolve_repair")
+                .action("RESOLVE_REPAIR")
                 .resource("repair")
                 .resourceId(repairId)
                 .build());
@@ -165,7 +184,7 @@ public class RepairServiceImpl implements RepairService {
         boolean wasOpen = repair.getStatus() == RepairStatus.OPEN;
         repairMapper.close(repairId);
 
-        String action = wasOpen ? "close_repair_direct" : "close_repair";
+        String action = wasOpen ? "CLOSE_REPAIR_DIRECT" : "CLOSE_REPAIR";
 
         if (!wasOpen) {
             // Restore charger to idle
@@ -200,7 +219,7 @@ public class RepairServiceImpl implements RepairService {
                 .id(UUID.randomUUID())
                 .actorId(adminId)
                 .actorType("admin")
-                .action("reject_repair")
+                .action("REJECT_REPAIR")
                 .resource("repair")
                 .resourceId(repairId)
                 .payload("{\"reason\": \"" + request.getReason() + "\"}")

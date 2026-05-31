@@ -21,7 +21,7 @@ public class ChargerServiceImpl implements ChargerService {
     @Override
     @Transactional
     public void restoreCharger(UUID chargerId) {
-        int updated = chargerMapper.updateStatusConditionally(chargerId, "idle", "fault");
+        int updated = chargerMapper.updateStatusConditionally(chargerId, "IDLE", "FAULT");
         if (updated == 0) {
             log.warn("Charger {} was not in fault status or not found", chargerId);
         }

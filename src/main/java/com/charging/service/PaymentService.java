@@ -14,4 +14,5 @@ public interface PaymentService {
     void processCallback(PaymentCallbackRequest callback, String gatewayKey);
     List<Payment> queryPayments(UUID userId, String userRole);
     void autoDeduct(UUID userId, BigDecimal amount, UUID chargeRecordId);
+    void payArrears(UUID userId, UUID recordId, String method);
 }

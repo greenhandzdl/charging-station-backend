@@ -3,6 +3,7 @@ package com.charging.mapper;
 import com.charging.entity.Repair;
 import org.apache.ibatis.annotations.*;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -11,7 +12,7 @@ import java.util.UUID;
 public interface RepairMapper {
 
     @Insert("INSERT INTO repairs (id, charger_id, reporter_id, description, status, reported_at) " +
-            "VALUES (#{id}, #{chargerId}, #{reporterId}, #{description}, 'open', now())")
+            "VALUES (#{id}, #{chargerId}, #{reporterId}, #{description}, 'OPEN', now())")
     int insert(Repair repair);
 
     @Select("SELECT * FROM repairs WHERE id = #{id} FOR UPDATE")
@@ -32,18 +33,21 @@ public interface RepairMapper {
     @Update("UPDATE repairs SET status = #{status}, handled_by = #{userId}, handled_at = now() WHERE id = #{id}")
     int updateStatus(@Param("id") UUID id, @Param("status") String status, @Param("userId") UUID userId);
 
-    @Update("UPDATE repairs SET status = 'in_progress', handled_by = #{userId} WHERE id = #{id} AND status = 'open'")
+    @Update("UPDATE repairs SET status = 'IN_PROGRESS', handled_by = #{userId} WHERE id = #{id} AND status = 'OPEN'")
     int assign(@Param("id") UUID id, @Param("userId") UUID userId);
 
-    @Update("UPDATE repairs SET status = 'resolved' WHERE id = #{id} AND status = 'in_progress'")
+    @Update("UPDATE repairs SET status = 'RESOLVED' WHERE id = #{id} AND status = 'IN_PROGRESS'")
     int resolve(UUID id);
 
-    @Update("UPDATE repairs SET status = 'closed', handled_at = now() WHERE id = #{id} AND status IN ('open', 'resolved')")
+    @Update("UPDATE repairs SET status = 'CLOSED', handled_at = now() WHERE id = #{id} AND status IN ('OPEN', 'RESOLVED')")
     int close(UUID id);
 
-    @Update("UPDATE repairs SET status = 'in_progress', reject_reason = #{reason} WHERE id = #{id} AND status = 'resolved'")
+    @Update("UPDATE repairs SET status = 'IN_PROGRESS', reject_reason = #{reason} WHERE id = #{id} AND status = 'RESOLVED'")
     int reject(@Param("id") UUID id, @Param("reason") String reason);
 
     @Update("UPDATE repairs SET handled_at = now() WHERE id = #{id}")
     int markHandled(UUID id);
+
+    @Select("SELECT MAX(reported_at) FROM repairs WHERE charger_id = #{chargerId} AND status IN ('OPEN', 'IN_PROGRESS')")
+    LocalDateTime findLatestFaultTime(@Param("chargerId") UUID chargerId);
 }

@@ -2,11 +2,14 @@ package com.charging.service.impl;
 
 import com.charging.entity.Charger;
 import com.charging.entity.Station;
+import com.charging.entity.User;
 import com.charging.infrastructure.dto.*;
 import com.charging.mapper.ChargeRecordMapper;
 import com.charging.mapper.ChargerMapper;
 import com.charging.mapper.PaymentMapper;
+import com.charging.mapper.RepairMapper;
 import com.charging.mapper.StationMapper;
+import com.charging.mapper.UserMapper;
 import com.charging.service.StatisticsService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -29,6 +32,8 @@ public class StatisticsServiceImpl implements StatisticsService {
     private final PaymentMapper paymentMapper;
     private final ChargerMapper chargerMapper;
     private final StationMapper stationMapper;
+    private final UserMapper userMapper;
+    private final RepairMapper repairMapper;
 
     @Override
     public ReportVO generateReport(Map<String, String> params) {
@@ -60,12 +65,21 @@ public class StatisticsServiceImpl implements StatisticsService {
 
         List<UserChargeStatsVO> result = new ArrayList<>();
         for (Map<String, Object> row : rawStats) {
-            result.add(UserChargeStatsVO.builder()
-                    .userId((UUID) row.get("user_id"))
+            UUID userId = (UUID) row.get("user_id");
+            UserChargeStatsVO vo = UserChargeStatsVO.builder()
+                    .userId(userId)
                     .chargeCount(((Number) row.get("count")).longValue())
                     .totalEnergy((BigDecimal) row.get("total_energy"))
                     .totalFee((BigDecimal) row.get("total_fee"))
-                    .build());
+                    .build();
+
+            // Enrich with user display info
+            userMapper.findById(userId).ifPresent(user -> {
+                vo.setUserName(user.getName());
+                vo.setPhone(user.getPhone());
+            });
+
+            result.add(vo);
         }
         return result;
     }
@@ -88,6 +102,12 @@ public class StatisticsServiceImpl implements StatisticsService {
             double utilizationRate = chargers.isEmpty() ? 0.0 :
                     (double) (chargingCount + faultCount) / chargers.size() * 100;
 
+            // Query charge stats for this station
+            Map<String, Object> stats = chargeRecordMapper.getStationChargeStats(station.getId());
+            long totalCharges = stats != null ? ((Number) stats.getOrDefault("count", 0)).longValue() : 0;
+            BigDecimal totalEnergy = stats != null ? (BigDecimal) stats.getOrDefault("total_energy", BigDecimal.ZERO) : BigDecimal.ZERO;
+            BigDecimal totalRevenue = stats != null ? (BigDecimal) stats.getOrDefault("total_fee", BigDecimal.ZERO) : BigDecimal.ZERO;
+
             result.add(StationAnalysisVO.builder()
                     .stationId(station.getId().toString())
                     .stationName(station.getName())
@@ -95,6 +115,9 @@ public class StatisticsServiceImpl implements StatisticsService {
                     .idleChargers(idleCount)
                     .chargingChargers(chargingCount)
                     .faultChargers(faultCount)
+                    .totalCharges(totalCharges)
+                    .totalEnergy(totalEnergy)
+                    .totalRevenue(totalRevenue)
                     .utilizationRate(BigDecimal.valueOf(utilizationRate)
                             .setScale(2, RoundingMode.HALF_UP).doubleValue())
                     .build());
@@ -155,13 +178,15 @@ public class StatisticsServiceImpl implements StatisticsService {
         for (Charger charger : allChargers) {
             if (charger.getStatus().name().equalsIgnoreCase("fault")) {
                 Station station = stationMapper.findById(charger.getStationId()).orElse(null);
+                LocalDateTime lastFaultTime = repairMapper.findLatestFaultTime(charger.getId());
                 result.add(FaultChargerVO.builder()
                         .chargerId(charger.getId())
                         .chargerCode(charger.getChargerCode())
                         .stationId(charger.getStationId())
                         .stationName(station != null ? station.getName() : "Unknown")
                         .chargerType(charger.getType().name().toLowerCase())
-                        .status("fault")
+                        .lastFaultTime(lastFaultTime)
+                        .status("FAULT")
                         .build());
             }
         }

@@ -33,16 +33,16 @@ class ChargerServiceTest {
 
     @Test
     void restoreCharger_shouldUpdateToIdle() {
-        when(chargerMapper.updateStatusConditionally(chargerId, "idle", "fault")).thenReturn(1);
+        when(chargerMapper.updateStatusConditionally(chargerId, "IDLE", "FAULT")).thenReturn(1);
 
         chargerService.restoreCharger(chargerId);
 
-        verify(chargerMapper).updateStatusConditionally(chargerId, "idle", "fault");
+        verify(chargerMapper).updateStatusConditionally(chargerId, "IDLE", "FAULT");
     }
 
     @Test
     void getChargerStatus_shouldReturnStatus() {
-        when(chargerMapper.findStatusById(chargerId)).thenReturn("idle");
+        when(chargerMapper.findStatusById(chargerId)).thenReturn("IDLE");
 
         ChargerStatus status = chargerService.getChargerStatus(chargerId);
 

@@ -14,11 +14,11 @@ import java.util.UUID;
 public interface ChargeRecordMapper {
 
     @Insert("INSERT INTO charge_records (id, user_id, charger_id, start_time, status, deduction_status, created_at) " +
-            "VALUES (#{id}, #{userId}, #{chargerId}, now(), 'processing', 'pending', now())")
+            "VALUES (#{id}, #{userId}, #{chargerId}, now(), 'PROCESSING', 'PENDING', now())")
     int insert(ChargeRecord record);
 
     @Update("UPDATE charge_records SET end_time = now(), energy_kwh = #{energy}, fee = #{fee}, " +
-            "status = 'completed', deduction_status = #{deductionStatus} WHERE id = #{id}")
+            "status = 'COMPLETED', deduction_status = #{deductionStatus} WHERE id = #{id}")
     int completeRecord(@Param("id") UUID id,
                        @Param("energy") BigDecimal energy,
                        @Param("fee") BigDecimal fee,
@@ -46,13 +46,13 @@ public interface ChargeRecordMapper {
     @Select("SELECT * FROM charge_records ORDER BY start_time DESC")
     List<ChargeRecord> findAll();
 
-    @Select("SELECT COUNT(*) FROM charge_records WHERE user_id = #{userId} AND status = 'processing'")
+    @Select("SELECT COUNT(*) FROM charge_records WHERE user_id = #{userId} AND status = 'PROCESSING'")
     int countProcessingByUserId(UUID userId);
 
-    @Select("SELECT * FROM charge_records WHERE deduction_status = 'arrears' AND user_id = #{userId} FOR UPDATE")
+    @Select("SELECT * FROM charge_records WHERE deduction_status = 'ARREARS' AND user_id = #{userId} FOR UPDATE")
     List<ChargeRecord> findArrearsByUserIdWithLock(UUID userId);
 
-    @Select("SELECT * FROM charge_records WHERE deduction_status = 'arrears' AND user_id = #{userId}")
+    @Select("SELECT * FROM charge_records WHERE deduction_status = 'ARREARS' AND user_id = #{userId}")
     List<ChargeRecord> findArrearsByUserId(UUID userId);
 
     // Statistics queries
@@ -62,7 +62,7 @@ public interface ChargeRecordMapper {
     @Select("SELECT COALESCE(SUM(energy_kwh), 0) FROM charge_records WHERE created_at >= #{start} AND created_at < #{end}")
     BigDecimal sumEnergyByDateRange(@Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
 
-    @Select("SELECT COALESCE(SUM(fee), 0) FROM charge_records WHERE status = 'completed' AND created_at >= #{start} AND created_at < #{end}")
+    @Select("SELECT COALESCE(SUM(fee), 0) FROM charge_records WHERE status = 'COMPLETED' AND created_at >= #{start} AND created_at < #{end}")
     BigDecimal sumFeeByDateRange(@Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
 
     @Select("SELECT user_id, COUNT(*) as count, COALESCE(SUM(energy_kwh), 0) as total_energy, " +
@@ -78,4 +78,43 @@ public interface ChargeRecordMapper {
             "WHERE created_at >= #{start} AND created_at < #{end} " +
             "GROUP BY charger_id")
     List<Map<String, Object>> getChargerUsageStats(@Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
+
+    // Enriched queries with JOINs for display data
+    @Select("SELECT cr.id, cr.user_id, cr.charger_id, cr.start_time, cr.end_time, " +
+            "cr.energy_kwh, cr.fee, cr.status, cr.deduction_status, " +
+            "u.name as user_name, u.plate_number, " +
+            "ch.charger_code, s.name as station_name " +
+            "FROM charge_records cr " +
+            "JOIN users u ON cr.user_id = u.id " +
+            "JOIN chargers ch ON cr.charger_id = ch.id " +
+            "JOIN stations s ON ch.station_id = s.id " +
+            "WHERE cr.user_id = #{userId} ORDER BY cr.start_time DESC")
+    List<Map<String, Object>> findEnrichedByUserId(@Param("userId") UUID userId);
+
+    @Select("SELECT cr.id, cr.user_id, cr.charger_id, cr.start_time, cr.end_time, " +
+            "cr.energy_kwh, cr.fee, cr.status, cr.deduction_status, " +
+            "u.name as user_name, u.plate_number, " +
+            "ch.charger_code, s.name as station_name " +
+            "FROM charge_records cr " +
+            "JOIN users u ON cr.user_id = u.id " +
+            "JOIN chargers ch ON cr.charger_id = ch.id " +
+            "JOIN stations s ON ch.station_id = s.id " +
+            "ORDER BY cr.start_time DESC")
+    List<Map<String, Object>> findEnrichedAll();
+
+    @Select("SELECT cr.id, cr.user_id, cr.charger_id, cr.start_time, cr.end_time, " +
+            "cr.energy_kwh, cr.fee, cr.status, cr.deduction_status, " +
+            "u.name as user_name, u.plate_number, " +
+            "ch.charger_code, s.name as station_name " +
+            "FROM charge_records cr " +
+            "JOIN users u ON cr.user_id = u.id " +
+            "JOIN chargers ch ON cr.charger_id = ch.id " +
+            "JOIN stations s ON ch.station_id = s.id " +
+            "WHERE cr.status = #{status} ORDER BY cr.start_time DESC")
+    List<Map<String, Object>> findEnrichedByStatus(@Param("status") String status);
+
+    @Select("SELECT COUNT(*) as count, COALESCE(SUM(energy_kwh), 0) as total_energy, COALESCE(SUM(fee), 0) as total_fee " +
+            "FROM charge_records WHERE charger_id IN (SELECT id FROM chargers WHERE station_id = #{stationId}) " +
+            "AND status = 'COMPLETED'")
+    Map<String, Object> getStationChargeStats(@Param("stationId") UUID stationId);
 }
