@@ -21,11 +21,13 @@ public class GlobalExceptionHandler {
     public ResponseEntity<Map<String, Object>> handleBusinessException(BusinessException e) {
         log.warn("Business exception: {} - {}", e.getCode(), e.getMessage());
         Map<String, Object> body = new HashMap<>();
-        body.put("error", Map.of(
-                "code", e.getCode(),
-                "message", e.getMessage(),
-                "details", e.getDetails()
-        ));
+        Map<String, Object> error = new HashMap<>();
+        error.put("code", e.getCode());
+        error.put("message", e.getMessage());
+        if (e.getDetails() != null) {
+            error.put("details", e.getDetails());
+        }
+        body.put("error", error);
         return ResponseEntity.status(e.getHttpStatus()).body(body);
     }
 
