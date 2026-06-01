@@ -7,6 +7,7 @@ import com.charging.infrastructure.dto.*;
 import com.charging.mapper.AuditLogMapper;
 import com.charging.mapper.ChargerMapper;
 import com.charging.mapper.RepairMapper;
+import com.charging.mapper.UserMapper;
 import com.charging.service.impl.RepairServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -33,6 +34,8 @@ class RepairServiceTest {
     private AuditLogMapper auditLogMapper;
     @Mock
     private ChargerService chargerService;
+    @Mock
+    private UserMapper userMapper;
 
     private RepairService repairService;
 
@@ -43,7 +46,7 @@ class RepairServiceTest {
 
     @BeforeEach
     void setUp() {
-        repairService = new RepairServiceImpl(repairMapper, chargerMapper, auditLogMapper, chargerService);
+        repairService = new RepairServiceImpl(repairMapper, chargerMapper, auditLogMapper, chargerService, userMapper);
 
         repairId = UUID.randomUUID();
         chargerId = UUID.randomUUID();

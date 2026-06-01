@@ -7,8 +7,11 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -41,82 +44,51 @@ class ChargeGuardTest {
                 .build();
     }
 
+    private Authentication authWithRole(String role, String uid) {
+        JwtUserPrincipal principal = JwtUserPrincipal.builder()
+                .userId(uid)
+                .role(role)
+                .build();
+        return new UsernamePasswordAuthenticationToken(principal, null,
+                List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_" + role)));
+    }
+
     @Test
     void canStop_asAdmin_shouldReturnTrue() {
-        JwtUserPrincipal principal = JwtUserPrincipal.builder()
-                .userId(UUID.randomUUID().toString())
-                .role("ADMIN")
-                .build();
-
-        assertTrue(chargeGuard.canStop(principal, recordId.toString()));
+        assertTrue(chargeGuard.canStop(authWithRole("ADMIN", UUID.randomUUID().toString()), recordId));
     }
 
     @Test
     void canStop_asSuperAdmin_shouldReturnTrue() {
-        JwtUserPrincipal principal = JwtUserPrincipal.builder()
-                .userId(UUID.randomUUID().toString())
-                .role("SUPER_ADMIN")
-                .build();
-
-        assertTrue(chargeGuard.canStop(principal, recordId.toString()));
+        assertTrue(chargeGuard.canStop(authWithRole("SUPER_ADMIN", UUID.randomUUID().toString()), recordId));
     }
 
     @Test
     void canStop_asOwner_shouldReturnTrue() {
-        JwtUserPrincipal principal = JwtUserPrincipal.builder()
-                .userId(userId.toString())
-                .role("USER")
-                .build();
         when(chargeRecordMapper.findById(recordId)).thenReturn(Optional.of(testRecord));
-
-        assertTrue(chargeGuard.canStop(principal, recordId.toString()));
+        assertTrue(chargeGuard.canStop(authWithRole("USER", userId.toString()), recordId));
     }
 
     @Test
     void canStop_asNonOwner_shouldReturnFalse() {
         UUID otherUserId = UUID.randomUUID();
-        JwtUserPrincipal principal = JwtUserPrincipal.builder()
-                .userId(otherUserId.toString())
-                .role("USER")
-                .build();
         when(chargeRecordMapper.findById(recordId)).thenReturn(Optional.of(testRecord));
-
-        assertFalse(chargeGuard.canStop(principal, recordId.toString()));
+        assertFalse(chargeGuard.canStop(authWithRole("USER", otherUserId.toString()), recordId));
     }
 
     @Test
-    void canStop_withNullPrincipal_shouldReturnFalse() {
-        assertFalse(chargeGuard.canStop(null, recordId.toString()));
+    void canStop_withNullAuth_shouldReturnFalse() {
+        assertFalse(chargeGuard.canStop(null, recordId));
     }
 
     @Test
     void canStop_withNullRecordId_shouldReturnFalse() {
-        JwtUserPrincipal principal = JwtUserPrincipal.builder()
-                .userId(userId.toString())
-                .role("USER")
-                .build();
-
-        assertFalse(chargeGuard.canStop(principal, null));
-    }
-
-    @Test
-    void canStop_withInvalidRecordId_shouldReturnFalse() {
-        JwtUserPrincipal principal = JwtUserPrincipal.builder()
-                .userId(userId.toString())
-                .role("USER")
-                .build();
-
-        assertFalse(chargeGuard.canStop(principal, "not-a-uuid"));
+        assertFalse(chargeGuard.canStop(authWithRole("USER", userId.toString()), null));
     }
 
     @Test
     void canStop_withRecordNotFound_shouldReturnFalse() {
-        JwtUserPrincipal principal = JwtUserPrincipal.builder()
-                .userId(userId.toString())
-                .role("USER")
-                .build();
         when(chargeRecordMapper.findById(recordId)).thenReturn(Optional.empty());
-
-        assertFalse(chargeGuard.canStop(principal, recordId.toString()));
+        assertFalse(chargeGuard.canStop(authWithRole("USER", userId.toString()), recordId));
     }
 }

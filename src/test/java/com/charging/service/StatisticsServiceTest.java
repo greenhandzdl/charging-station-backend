@@ -9,7 +9,9 @@ import com.charging.infrastructure.dto.*;
 import com.charging.mapper.ChargeRecordMapper;
 import com.charging.mapper.ChargerMapper;
 import com.charging.mapper.PaymentMapper;
+import com.charging.mapper.RepairMapper;
 import com.charging.mapper.StationMapper;
+import com.charging.mapper.UserMapper;
 import com.charging.service.impl.StatisticsServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -39,13 +41,17 @@ class StatisticsServiceTest {
     private ChargerMapper chargerMapper;
     @Mock
     private StationMapper stationMapper;
+    @Mock
+    private UserMapper userMapper;
+    @Mock
+    private RepairMapper repairMapper;
 
     private StatisticsService statisticsService;
 
     @BeforeEach
     void setUp() {
         statisticsService = new StatisticsServiceImpl(chargeRecordMapper, paymentMapper,
-                chargerMapper, stationMapper);
+                chargerMapper, stationMapper, userMapper, repairMapper);
     }
 
     @Test
