@@ -1,11 +1,15 @@
 server:
   port: 8080
+  servlet:
+    context-path: /api
 
 spring:
   application:
     name: charging-station-backend
   profiles:
     active: dev
+  config:
+    import: optional:config/
 
   datasource:
     type: com.zaxxer.hikari.HikariDataSource
@@ -18,14 +22,19 @@ spring:
 
   data:
     redis:
-      host: localhost
-      port: 6379
       timeout: 5000
       lettuce:
         pool:
           max-active: 8
           max-idle: 8
           min-idle: 0
+
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: true
+    path: /swagger-ui.html
 
 jackson:
     date-format: yyyy-MM-dd HH:mm:ss
@@ -40,7 +49,7 @@ mybatis:
   configuration:
     map-underscore-to-camel-case: true
     log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
-    
+
 pagehelper:
   helper-dialect: postgresql
   reasonable: true
@@ -51,16 +60,12 @@ pagehelper:
 jwt:
   access-token-expiration: 900000  # 15 minutes in milliseconds
   refresh-token-expiration: 604800000  # 7 days in milliseconds
-  secret: ${JWT_SECRET:charging-station-default-secret-key-change-in-production-32chars}
 
 # Payment Gateway
 payment:
   gateway:
     mock-url: http://localhost:9999/mock-gateway
     callback-url: http://localhost:8080/api/v1/payments/callback
-  hmac-secret: ${PAYMENT_HMAC_SECRET:default-hmac-secret-change-in-production}
-  wechat-api-key: ${WECHAT_API_KEY:wechat-default-key}
-  alipay-api-key: ${ALIPAY_API_KEY:alipay-default-key}
 
 # Charging business rules
 charging:
