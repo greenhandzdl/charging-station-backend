@@ -249,11 +249,23 @@ public class UserServiceImpl implements UserService {
         redisTemplate.opsForValue().set(refreshKey, newRefreshToken,
                 jwtTokenProvider.getRefreshTokenExpiration(), TimeUnit.MILLISECONDS);
 
-        return LoginResponse.builder()
+        // Include user info for client state sync
+        LoginResponse.LoginResponseBuilder builder = LoginResponse.builder()
                 .accessToken(newAccessToken)
                 .refreshToken(newRefreshToken)
-                .expiresIn(jwtTokenProvider.getAccessTokenExpiration() / 1000)
-                .build();
+                .expiresIn(jwtTokenProvider.getAccessTokenExpiration() / 1000);
+
+        userMapper.findById(UUID.fromString(userId)).ifPresent(user ->
+                builder.user(LoginResponse.UserInfo.builder()
+                        .id(user.getId().toString())
+                        .name(user.getName())
+                        .phone(user.getPhone())
+                        .role(user.getRole().name())
+                        .balance(user.getBalance())
+                        .build())
+        );
+
+        return builder.build();
     }
 
     @Override
