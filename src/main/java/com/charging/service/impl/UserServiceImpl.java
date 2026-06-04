@@ -538,8 +538,8 @@ public class UserServiceImpl implements UserService {
     // ========== Private helpers ==========
 
     private void validateCaptcha(String captchaId, String captchaCode) {
-        if (captchaId == null || captchaCode == null) {
-            return; // captcha is optional for non-threshold cases
+        if (captchaId == null || captchaCode == null || captchaId.isBlank() || captchaCode.isBlank()) {
+            return; // captcha is optional
         }
         String key = CAPTCHA_PREFIX + captchaId;
         String stored = (String) redisTemplate.opsForValue().get(key);

@@ -26,9 +26,7 @@ public class RegisterRequest {
 
     private String plateNumber;
 
-    @NotBlank(message = "验证码ID不能为空")
     private String captchaId;
 
-    @NotBlank(message = "验证码不能为空")
     private String captchaCode;
 }
