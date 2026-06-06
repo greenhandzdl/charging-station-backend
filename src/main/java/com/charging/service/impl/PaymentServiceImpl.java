@@ -233,7 +233,7 @@ public class PaymentServiceImpl implements PaymentService {
                 .id(UUID.randomUUID())
                 .actorId(userId)
                 .actorType("user")
-                .action("pay_arrears")
+                .action("PAY_ARREARS")
                 .resource("charge_record")
                 .resourceId(recordId)
                 .payload("{\"method\": \"" + method + "\", \"amount\": " + fee + "}")
