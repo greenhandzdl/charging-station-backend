@@ -13,6 +13,9 @@ public interface PaymentService {
     RechargeResponse recharge(UUID userId, RechargeRequest request);
     void processCallback(PaymentCallbackRequest callback, String gatewayKey);
     List<Payment> queryPayments(UUID userId, String userRole);
+    List<Payment> listPendingPayments();
+    void approvePayment(UUID paymentId, UUID adminId);
+    void rejectPayment(UUID paymentId, UUID adminId, String reason);
     void autoDeduct(UUID userId, BigDecimal amount, UUID chargeRecordId);
     void payArrears(UUID userId, UUID recordId, String method);
 }

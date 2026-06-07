@@ -149,6 +149,57 @@ public class PaymentServiceImpl implements PaymentService {
     }
 
     @Override
+    public List<Payment> listPendingPayments() {
+        return paymentMapper.findByStatus("PENDING");
+    }
+
+    @Override
+    @Transactional
+    public void approvePayment(UUID paymentId, UUID adminId) {
+        Payment payment = paymentMapper.findById(paymentId)
+                .orElseThrow(() -> BusinessException.notFound("Payment", paymentId.toString()));
+
+        if (payment.getStatus() != com.charging.enums.PaymentStatus.PENDING) {
+            throw BusinessException.conflict("只有PENDING状态的支付可审核通过");
+        }
+
+        paymentMapper.updateStatus(paymentId, "APPROVED");
+
+        // Audit log
+        auditLogMapper.insert(AuditLog.builder()
+                .id(UUID.randomUUID())
+                .actorId(adminId)
+                .actorType("admin")
+                .action("APPROVE_PAYMENT")
+                .resource("payment")
+                .resourceId(paymentId)
+                .build());
+    }
+
+    @Override
+    @Transactional
+    public void rejectPayment(UUID paymentId, UUID adminId, String reason) {
+        Payment payment = paymentMapper.findById(paymentId)
+                .orElseThrow(() -> BusinessException.notFound("Payment", paymentId.toString()));
+
+        if (payment.getStatus() != com.charging.enums.PaymentStatus.PENDING) {
+            throw BusinessException.conflict("只有PENDING状态的支付可拒绝");
+        }
+
+        paymentMapper.updateStatus(paymentId, "FAILED");
+
+        // Audit log
+        auditLogMapper.insert(AuditLog.builder()
+                .id(UUID.randomUUID())
+                .actorId(adminId)
+                .actorType("admin")
+                .action("REJECT_PAYMENT")
+                .resource("payment")
+                .resourceId(paymentId)
+                .build());
+    }
+
+    @Override
     @Transactional
     public void autoDeduct(UUID userId, BigDecimal amount, UUID chargeRecordId) {
         // Create auto-deduct payment record

@@ -48,6 +48,30 @@ public class PaymentController {
         return ResponseEntity.ok(payments);
     }
 
+    @GetMapping("/payments/pending")
+    @PreAuthorize("hasAnyRole('ADMIN', 'SUPER_ADMIN')")
+    public ResponseEntity<List<Payment>> listPendingPayments() {
+        return ResponseEntity.ok(paymentService.listPendingPayments());
+    }
+
+    @PutMapping("/payments/{id}/approve")
+    @PreAuthorize("hasAnyRole('ADMIN', 'SUPER_ADMIN')")
+    public ResponseEntity<Map<String, String>> approvePayment(@PathVariable UUID id,
+                                                               @AuthenticationPrincipal JwtUserPrincipal principal) {
+        UUID adminId = UUID.fromString(principal.getUserId());
+        paymentService.approvePayment(id, adminId);
+        return ResponseEntity.ok(Map.of("status", "approved"));
+    }
+
+    @PutMapping("/payments/{id}/reject")
+    @PreAuthorize("hasAnyRole('ADMIN', 'SUPER_ADMIN')")
+    public ResponseEntity<Map<String, String>> rejectPayment(@PathVariable UUID id,
+                                                              @AuthenticationPrincipal JwtUserPrincipal principal) {
+        UUID adminId = UUID.fromString(principal.getUserId());
+        paymentService.rejectPayment(id, adminId, "管理员拒绝");
+        return ResponseEntity.ok(Map.of("status", "rejected"));
+    }
+
     @PostMapping("/payments/pay-arrears")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<Map<String, String>> payArrears(@RequestBody Map<String, Object> request,

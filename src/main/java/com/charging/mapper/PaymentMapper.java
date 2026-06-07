@@ -29,8 +29,14 @@ public interface PaymentMapper {
     @Select("SELECT status FROM payments WHERE id = #{id}")
     String findStatusById(UUID id);
 
+    @Select("SELECT * FROM payments WHERE status = #{status} ORDER BY created_at DESC")
+    List<Payment> findByStatus(String status);
+
     @Update("UPDATE payments SET status = 'SUCCESS', gateway_tx_id = #{txId} WHERE id = #{id} AND status = 'PENDING'")
     int markSuccess(@Param("id") UUID id, @Param("txId") String txId);
+
+    @Update("UPDATE payments SET status = #{status} WHERE id = #{id}")
+    int updateStatus(@Param("id") UUID id, @Param("status") String status);
 
     @Update("UPDATE payments SET status = 'FAILED' WHERE id = #{id}")
     int markFailed(UUID id);
