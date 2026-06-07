@@ -1,12 +1,14 @@
 package com.charging.service.impl;
 
 import com.charging.entity.AuditLog;
+import com.charging.entity.PasswordHistory;
 import com.charging.entity.User;
 import com.charging.enums.UserRole;
 import com.charging.exception.BusinessException;
 import com.charging.infrastructure.dto.*;
 import com.charging.infrastructure.security.JwtTokenProvider;
 import com.charging.mapper.AuditLogMapper;
+import com.charging.mapper.PasswordHistoryMapper;
 import io.jsonwebtoken.Claims;
 import com.charging.mapper.UserMapper;
 import com.charging.service.UserService;
@@ -33,6 +35,7 @@ public class UserServiceImpl implements UserService {
     private final AuditLogMapper auditLogMapper;
     private final RedisTemplate<String, Object> redisTemplate;
     private final JwtTokenProvider jwtTokenProvider;
+    private final PasswordHistoryMapper passwordHistoryMapper;
     private final PasswordEncoder passwordEncoder;
 
     private static final String REFRESH_TOKEN_PREFIX = "refresh_token:";
@@ -360,10 +363,19 @@ public class UserServiceImpl implements UserService {
 
         // Validate password strength
         validatePasswordStrength(request.getNewPassword());
-
-        // Update password
         String newPasswordHash = passwordEncoder.encode(request.getNewPassword());
+
+        // Check password history (reject if matches recent 3)
+        checkPasswordHistory(user.getId(), newPasswordHash);
+
         userMapper.updatePassword(user.getId(), newPasswordHash);
+
+        // Save new password hash to history and prune old records
+        passwordHistoryMapper.insert(PasswordHistory.builder()
+                .userId(user.getId())
+                .passwordHash(newPasswordHash)
+                .build());
+        passwordHistoryMapper.deleteOldRecords(user.getId());
 
         // Clean up
         redisTemplate.delete(redisKey);
@@ -402,7 +414,18 @@ public class UserServiceImpl implements UserService {
 
         validatePasswordStrength(request.getNewPassword());
         String newPasswordHash = passwordEncoder.encode(request.getNewPassword());
+
+        // Check password history (reject if matches recent 3)
+        checkPasswordHistory(user.getId(), newPasswordHash);
+
         userMapper.updatePassword(userId, newPasswordHash);
+
+        // Save new password hash to history and prune old records
+        passwordHistoryMapper.insert(PasswordHistory.builder()
+                .userId(userId)
+                .passwordHash(newPasswordHash)
+                .build());
+        passwordHistoryMapper.deleteOldRecords(userId);
 
         // Audit log
         auditLogMapper.insert(AuditLog.builder()
@@ -565,17 +588,44 @@ public class UserServiceImpl implements UserService {
         if (password == null || password.length() < 8) {
             throw BusinessException.badRequest("密码长度至少8位");
         }
-        boolean hasLetter = password.chars().anyMatch(Character::isLetter);
+        boolean hasUpper = password.chars().anyMatch(Character::isUpperCase);
+        boolean hasLower = password.chars().anyMatch(Character::isLowerCase);
         boolean hasDigit = password.chars().anyMatch(Character::isDigit);
-        if (!hasLetter || !hasDigit) {
-            throw BusinessException.badRequest("密码必须包含字母和数字");
+        boolean hasSpecial = password.chars().anyMatch(ch -> SPECIAL_CHARS.indexOf(ch) >= 0);
+
+        int categories = 0;
+        if (hasUpper) categories++;
+        if (hasLower) categories++;
+        if (hasDigit) categories++;
+        if (hasSpecial) categories++;
+
+        if (categories < 3) {
+            throw BusinessException.badRequest("密码必须包含大写字母、小写字母、数字、特殊字符中的至少3类");
         }
     }
+
+    private static final String SPECIAL_CHARS = "@$!%*#?&.";
 
     private void incrementIpFailCount(String ipKey) {
         Long count = redisTemplate.opsForValue().increment(ipKey);
         if (count != null && count == 1) {
             redisTemplate.expire(ipKey, 5, TimeUnit.MINUTES);
+        }
+    }
+
+    private void checkPasswordHistory(UUID userId, String newPasswordHash) {
+        List<PasswordHistory> recent = passwordHistoryMapper.findRecentByUserId(userId);
+        // Also include the current password hash in the check
+        User cur = userMapper.findById(userId).orElse(null);
+        if (cur != null) {
+            if (cur.getPasswordHash().equals(newPasswordHash)) {
+                throw BusinessException.badRequest("新密码不能与当前密码相同");
+            }
+            for (PasswordHistory h : recent) {
+                if (h.getPasswordHash().equals(newPasswordHash)) {
+                    throw BusinessException.badRequest("新密码不能与最近3次使用的密码相同");
+                }
+            }
         }
     }
 

@@ -3,7 +3,9 @@ package com.charging.controller;
 import com.charging.entity.Charger;
 import com.charging.entity.Station;
 import com.charging.infrastructure.dto.ChargerRequest;
+import com.charging.infrastructure.dto.ChargerSuggestDTO;
 import com.charging.infrastructure.dto.StationRequest;
+import com.charging.infrastructure.dto.StationSuggestDTO;
 import com.charging.mapper.ChargerMapper;
 import com.charging.mapper.StationMapper;
 import jakarta.validation.Valid;
@@ -38,6 +40,22 @@ public class StationController {
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<List<Station>> searchStations(@RequestParam String name) {
         return ResponseEntity.ok(stationMapper.searchByName(name));
+    }
+
+    @GetMapping("/stations/search/suggest")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<List<StationSuggestDTO>> suggestStations(
+            @RequestParam String keyword,
+            @RequestParam(defaultValue = "5") int limit) {
+        return ResponseEntity.ok(stationMapper.suggestStations(keyword, Math.min(limit, 20)));
+    }
+
+    @GetMapping("/chargers/search/suggest")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<List<ChargerSuggestDTO>> suggestChargers(
+            @RequestParam String keyword,
+            @RequestParam(defaultValue = "5") int limit) {
+        return ResponseEntity.ok(chargerMapper.suggestChargers(keyword, Math.min(limit, 20)));
     }
 
     @GetMapping("/stations/{id}")

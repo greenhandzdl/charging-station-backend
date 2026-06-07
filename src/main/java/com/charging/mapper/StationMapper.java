@@ -1,6 +1,7 @@
 package com.charging.mapper;
 
 import com.charging.entity.Station;
+import com.charging.infrastructure.dto.StationSuggestDTO;
 import org.apache.ibatis.annotations.*;
 
 import java.util.List;
@@ -26,6 +27,9 @@ public interface StationMapper {
 
     @Select("SELECT * FROM stations WHERE name ILIKE '%' || #{name} || '%'")
     List<Station> searchByName(String name);
+
+    @Select("SELECT id, name, location AS address FROM stations WHERE name ILIKE '%' || #{keyword} || '%' OR location ILIKE '%' || #{keyword} || '%' LIMIT #{limit}")
+    List<StationSuggestDTO> suggestStations(@Param("keyword") String keyword, @Param("limit") int limit);
 
     @Delete("DELETE FROM stations WHERE id = #{id}")
     int deleteById(UUID id);

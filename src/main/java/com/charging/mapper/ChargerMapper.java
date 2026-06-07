@@ -2,6 +2,7 @@ package com.charging.mapper;
 
 import com.charging.entity.Charger;
 import com.charging.enums.ChargerStatus;
+import com.charging.infrastructure.dto.ChargerSuggestDTO;
 import org.apache.ibatis.annotations.*;
 
 import java.util.List;
@@ -47,4 +48,10 @@ public interface ChargerMapper {
 
     @Select("SELECT COUNT(*) FROM chargers WHERE station_id = #{stationId} AND status = #{status}")
     int countByStationIdAndStatus(@Param("stationId") UUID stationId, @Param("status") String status);
+
+    @Select("SELECT c.id, c.charger_code AS code, s.name AS station_name, c.status " +
+            "FROM chargers c LEFT JOIN stations s ON c.station_id = s.id " +
+            "WHERE c.charger_code ILIKE '%' || #{keyword} || '%' OR s.name ILIKE '%' || #{keyword} || '%' " +
+            "LIMIT #{limit}")
+    List<ChargerSuggestDTO> suggestChargers(@Param("keyword") String keyword, @Param("limit") int limit);
 }

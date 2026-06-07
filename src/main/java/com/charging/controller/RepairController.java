@@ -51,6 +51,15 @@ public class RepairController {
         return ResponseEntity.ok(Map.of("status", "in_progress"));
     }
 
+    @PutMapping("/repairs/{id}/claim")
+    @PreAuthorize("hasAnyRole('MAINTAINER', 'ADMIN')")
+    public ResponseEntity<Map<String, String>> claimRepair(@PathVariable UUID id,
+                                                            @AuthenticationPrincipal JwtUserPrincipal principal) {
+        UUID userId = UUID.fromString(principal.getUserId());
+        repairService.claim(id, userId);
+        return ResponseEntity.ok(Map.of("status", "in_progress"));
+    }
+
     @PutMapping("/repairs/{id}/resolve")
     @PreAuthorize("hasAnyRole('MAINTAINER', 'ADMIN')")
     public ResponseEntity<Map<String, String>> resolveRepair(@PathVariable UUID id,

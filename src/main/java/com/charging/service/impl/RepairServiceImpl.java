@@ -145,6 +145,29 @@ public class RepairServiceImpl implements RepairService {
 
     @Override
     @Transactional
+    public void claim(UUID repairId, UUID userId) {
+        Repair repair = repairMapper.findById(repairId)
+                .orElseThrow(() -> BusinessException.notFound("Repair", repairId.toString()));
+
+        if (repair.getStatus() != RepairStatus.OPEN) {
+            throw BusinessException.conflict("只有OPEN状态的报修单可接单");
+        }
+
+        repairMapper.assign(repairId, userId);
+
+        // Audit log
+        auditLogMapper.insert(AuditLog.builder()
+                .id(UUID.randomUUID())
+                .actorId(userId)
+                .actorType("maintainer")
+                .action("CLAIM_REPAIR")
+                .resource("repair")
+                .resourceId(repairId)
+                .build());
+    }
+
+    @Override
+    @Transactional
     public void resolve(UUID repairId, UUID userId, String userRole) {
         Repair repair = repairMapper.findById(repairId)
                 .orElseThrow(() -> BusinessException.notFound("Repair", repairId.toString()));
