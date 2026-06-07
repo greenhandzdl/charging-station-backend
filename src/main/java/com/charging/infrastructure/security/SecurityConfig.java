@@ -38,7 +38,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/auth/password-reset/confirm").permitAll()
                         .requestMatchers("/api/v1/captcha/**").permitAll()
                         .requestMatchers("/api/v1/payments/callback").permitAll()
-                        .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
+                        .requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**").permitAll()
                         .requestMatchers("/actuator/health").permitAll()
                         // All other requests require authentication
                         .anyRequest().authenticated()

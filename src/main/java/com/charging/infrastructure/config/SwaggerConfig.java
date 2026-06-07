@@ -43,12 +43,12 @@ public class SwaggerConfig {
         return GroupedOpenApi.builder()
                 .group("public")
                 .displayName("公开接口（无需认证）")
-                .pathsToMatch("/v1/auth/register",
-                        "/v1/auth/login",
-                        "/v1/auth/password-reset",
-                        "/v1/auth/password-reset/confirm",
-                        "/v1/captcha/**",
-                        "/v1/payments/callback",
+                .pathsToMatch("/api/v1/auth/register",
+                        "/api/v1/auth/login",
+                        "/api/v1/auth/password-reset",
+                        "/api/v1/auth/password-reset/confirm",
+                        "/api/v1/captcha/**",
+                        "/api/v1/payments/callback",
                         "/actuator/health")
                 .build();
     }
@@ -61,14 +61,14 @@ public class SwaggerConfig {
         return GroupedOpenApi.builder()
                 .group("authenticated")
                 .displayName("认证接口（需JWT）")
-                .pathsToMatch("/v1/charges/**",
-                        "/v1/stations/**",
-                        "/v1/chargers/**",
-                        "/v1/payments/**",
-                        "/v1/repairs/**",
-                        "/v1/auth/refresh",
-                        "/v1/auth/password",
-                        "/v1/users/balance")
+                .pathsToMatch("/api/v1/charges/**",
+                        "/api/v1/stations/**",
+                        "/api/v1/chargers/**",
+                        "/api/v1/payments/**",
+                        "/api/v1/repairs/**",
+                        "/api/v1/auth/refresh",
+                        "/api/v1/auth/password",
+                        "/api/v1/users/balance")
                 .build();
     }
 
@@ -80,9 +80,9 @@ public class SwaggerConfig {
         return GroupedOpenApi.builder()
                 .group("admin")
                 .displayName("管理接口（需ADMIN/SUPER_ADMIN）")
-                .pathsToMatch("/v1/users/**",
-                        "/v1/analytics/**")
-                .pathsToExclude("/v1/users/balance")
+                .pathsToMatch("/api/v1/users/**",
+                        "/api/v1/analytics/**")
+                .pathsToExclude("/api/v1/users/balance")
                 .build();
     }
 }
