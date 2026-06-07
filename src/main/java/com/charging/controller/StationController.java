@@ -160,7 +160,7 @@ public class StationController {
     }
 
     @PutMapping("/chargers/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'SUPER_ADMIN', 'MAINTAINER')")
     public ResponseEntity<Charger> updateCharger(@PathVariable UUID id,
                                                  @Valid @RequestBody ChargerRequest request) {
         Charger charger = chargerMapper.findById(id)
