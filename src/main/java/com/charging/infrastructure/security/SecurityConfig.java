@@ -41,6 +41,10 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/payments/callback").permitAll()
                         .requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**").permitAll()
                         .requestMatchers("/actuator/health").permitAll()
+                        // Heartbeat endpoint: authenticated (Mock Swing in both normal/advanced mode)
+                        .requestMatchers(HttpMethod.POST, "/api/v1/chargers/heartbeat").authenticated()
+                        // Statistics export: admin/advanced only
+                        .requestMatchers("/api/v1/analytics/export").hasAnyAuthority("SCOPE_admin", "SCOPE_advanced")
                         // All other requests require authentication
                         .anyRequest().authenticated()
                 )

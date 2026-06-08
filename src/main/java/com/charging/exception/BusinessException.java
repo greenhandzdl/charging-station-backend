@@ -77,4 +77,9 @@ public class BusinessException extends RuntimeException {
         return new BusinessException("ACCOUNT_FROZEN",
                 "账户已冻结", HttpStatus.FORBIDDEN);
     }
+
+    public static BusinessException chargerOffline() {
+        return new BusinessException("CHARGER_OFFLINE",
+                "充电桩不在线", HttpStatus.FORBIDDEN);
+    }
 }

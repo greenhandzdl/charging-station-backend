@@ -22,4 +22,6 @@ public class Charger {
     private ChargerStatus status;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+    private String onlineStatus;   // ONLINE or OFFLINE, default ONLINE
+    private LocalDateTime lastHeartbeatAt;
 }

@@ -80,3 +80,7 @@ logging:
   level:
     com.charging: DEBUG
     org.springframework.security: DEBUG
+# Mock Charger (Swing Client) base URL
+charger:
+  mock:
+    base-url: http://localhost:8081

@@ -85,6 +85,7 @@ class ChargingServiceTest {
                 .chargerCode("C001")
                 .type(ChargerType.FAST)
                 .status(ChargerStatus.IDLE)
+                .onlineStatus("ONLINE")
                 .stationId(UUID.randomUUID())
                 .build();
     }
@@ -131,6 +132,21 @@ class ChargingServiceTest {
                 .build();
 
         assertThrows(BusinessException.class, () -> chargingService.startCharge(userId, request));
+    }
+
+    @Test
+    void startCharge_shouldThrowException_whenChargerOffline() {
+        when(userMapper.findById(userId)).thenReturn(Optional.of(testUser));
+        when(chargeRecordMapper.countProcessingByUserId(userId)).thenReturn(0);
+        testCharger.setOnlineStatus("OFFLINE");
+        when(chargerMapper.findById(chargerId)).thenReturn(Optional.of(testCharger));
+
+        StartChargeRequest request = StartChargeRequest.builder()
+                .chargerId(chargerId)
+                .build();
+
+        BusinessException ex = assertThrows(BusinessException.class, () -> chargingService.startCharge(userId, request));
+        assertTrue(ex.getMessage().contains("不在线"));
     }
 
     @Test

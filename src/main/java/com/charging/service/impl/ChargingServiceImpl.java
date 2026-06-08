@@ -80,6 +80,11 @@ public class ChargingServiceImpl implements ChargingService {
             throw BusinessException.conflict("充电桩已被占用");
         }
 
+        // Check charger is online
+        if (!"ONLINE".equals(charger.getOnlineStatus())) {
+            throw BusinessException.chargerOffline();
+        }
+
         // Lock charger (optimistic write)
         int updated = chargerMapper.updateStatusConditionally(chargerId, "CHARGING", "IDLE");
         if (updated == 0) {

@@ -1,10 +1,14 @@
 package com.charging.controller;
 
+import com.charging.entity.Charger;
+import com.charging.exception.BusinessException;
 import com.charging.infrastructure.dto.*;
 import com.charging.infrastructure.security.JwtUserPrincipal;
+import com.charging.mapper.ChargerMapper;
 import com.charging.service.ChargingService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -17,9 +21,11 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/v1")
 @RequiredArgsConstructor
+@Slf4j
 public class ChargingController {
 
     private final ChargingService chargingService;
+    private final ChargerMapper chargerMapper;
 
     @PostMapping("/charges/start")
     @PreAuthorize("isAuthenticated()")
@@ -59,6 +65,27 @@ public class ChargingController {
         UUID userId = UUID.fromString(principal.getUserId());
         List<Map<String, Object>> records = chargingService.queryCharges(userId, principal.getRole(), params);
         return ResponseEntity.ok(records);
+    }
+
+
+    @PostMapping("/chargers/heartbeat")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<Map<String, Object>> receiveHeartbeat(@RequestBody Map<String, String> request,
+                                                                 @AuthenticationPrincipal JwtUserPrincipal principal) {
+        String chargerCode = request.get("chargerCode");
+        if (chargerCode == null || chargerCode.isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "chargerCode is required"));
+        }
+
+        // Find charger by code
+        Charger charger = chargerMapper.findByChargerCode(chargerCode)
+                .orElseThrow(() -> BusinessException.notFound("Charger", chargerCode));
+
+        // Update heartbeat timestamp and online status
+        chargerMapper.updateHeartbeat(charger.getId());
+
+        log.debug("Heartbeat received from charger: {}", chargerCode);
+        return ResponseEntity.ok(Map.of("status", "OK", "chargerCode", chargerCode));
     }
 
     private String getClientIp(jakarta.servlet.http.HttpServletRequest request) {

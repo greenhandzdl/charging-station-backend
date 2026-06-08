@@ -49,6 +49,12 @@ public interface ChargerMapper {
     @Select("SELECT COUNT(*) FROM chargers WHERE station_id = #{stationId} AND status = #{status}")
     int countByStationIdAndStatus(@Param("stationId") UUID stationId, @Param("status") String status);
 
+    @Update("UPDATE chargers SET online_status = 'ONLINE', last_heartbeat_at = now() WHERE id = #{id}")
+    int updateHeartbeat(@Param("id") UUID id);
+
+    @Update("UPDATE chargers SET online_status = 'OFFLINE' WHERE id = #{id} AND online_status = 'ONLINE'")
+    int markOffline(@Param("id") UUID id);
+
     @Select("SELECT c.id, c.charger_code AS code, s.name AS station_name, c.status " +
             "FROM chargers c LEFT JOIN stations s ON c.station_id = s.id " +
             "WHERE c.charger_code ILIKE '%' || #{keyword} || '%' OR s.name ILIKE '%' || #{keyword} || '%' " +
