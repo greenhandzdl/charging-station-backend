@@ -11,6 +11,7 @@ import com.charging.mapper.ChargeRecordMapper;
 import com.charging.mapper.ChargerMapper;
 import com.charging.mapper.UserMapper;
 import com.charging.service.impl.BillingServiceImpl;
+import com.charging.infrastructure.connector.ChargerConnector;
 import com.charging.service.impl.ChargingServiceImpl;
 import com.charging.strategy.PeakPricing;
 import com.charging.strategy.StandardPricing;
@@ -44,6 +45,8 @@ class ChargingServiceTest {
     private AuditLogMapper auditLogMapper;
     @Mock
     private PaymentService paymentService;
+    @Mock
+    private ChargerConnector chargerConnector;
 
     private BillingService billingService;
     private ChargingService chargingService;
@@ -60,7 +63,7 @@ class ChargingServiceTest {
         PeakPricing peakPricing = new PeakPricing();
         billingService = new BillingServiceImpl(standardPricing, peakPricing);
         chargingService = new ChargingServiceImpl(chargerMapper, chargeRecordMapper, userMapper,
-                auditLogMapper, paymentService, billingService);
+                auditLogMapper, paymentService, billingService, chargerConnector);
 
         // Set minBalance via reflection
         setField(chargingService, "minBalance", new BigDecimal("10.00"));
