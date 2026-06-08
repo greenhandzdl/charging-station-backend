@@ -119,6 +119,54 @@ public class ChargingServiceImpl implements ChargingService {
                 .build();
     }
 
+    /**
+     * 定时检查进行中的充电记录，当用户余额低于阈值时自动停止充电。
+     * 由 ChargingScheduler 定期调用（每 30 秒）。
+     */
+    @Override
+    @Transactional
+    public int autoStopOnInsufficientBalance() {
+        List<ChargeRecord> processingRecords = chargeRecordMapper.findProcessingRecords();
+        int stopped = 0;
+        for (ChargeRecord record : processingRecords) {
+            try {
+                User user = userMapper.findById(record.getUserId()).orElse(null);
+                if (user == null) continue;
+
+                Charger charger = chargerMapper.findById(record.getChargerId()).orElse(null);
+                if (charger == null) continue;
+
+                // If balance < min_balance, auto-stop
+                if (user.getBalance().compareTo(minBalance) < 0) {
+                    BigDecimal energyKwh = new BigDecimal("15.0");
+                    BigDecimal fee = billingService.calculateFee(charger.getType(), energyKwh);
+
+                    chargeRecordMapper.completeRecord(record.getId(), energyKwh, fee, "ARREARS");
+                    userMapper.freezeAccount(record.getUserId());
+                    chargerMapper.updateStatusConditionally(charger.getId(), "IDLE", "CHARGING");
+                    chargerConnector.notifyStop(charger.getChargerCode(), record.getId());
+
+                    auditLogMapper.insert(AuditLog.builder()
+                            .id(UUID.randomUUID())
+                            .actorId(record.getUserId())
+                            .actorType("system")
+                            .action("FORCE_STOP_ARREARS")
+                            .resource("charge_record")
+                            .resourceId(record.getId())
+                            .payload("{\"reason\": \"余额不足，自动停止充电\", \"balance\": \""
+                                    + user.getBalance() + "\"}")
+                            .build());
+                    stopped++;
+                    log.info("Auto-stopped charge {} due to insufficient balance ({})",
+                            record.getId(), user.getBalance());
+                }
+            } catch (Exception e) {
+                log.error("Error auto-stopping charge record {}", record.getId(), e);
+            }
+        }
+        return stopped;
+    }
+
     @Override
     @Transactional(isolation = Isolation.REPEATABLE_READ)
     public ChargeResponse stopCharge(UUID userId, String userRole, StopChargeRequest request) {

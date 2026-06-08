@@ -165,6 +165,12 @@ public class PaymentServiceImpl implements PaymentService {
 
         paymentMapper.updateStatus(paymentId, "APPROVED");
 
+        // Add balance to user immediately upon approval
+        userMapper.addBalance(payment.getUserId(), payment.getAmount());
+
+        // Auto-deduct arrears
+        autoDeductArrears(payment.getUserId());
+
         // Audit log
         auditLogMapper.insert(AuditLog.builder()
                 .id(UUID.randomUUID())
@@ -173,6 +179,9 @@ public class PaymentServiceImpl implements PaymentService {
                 .action("APPROVE_PAYMENT")
                 .resource("payment")
                 .resourceId(paymentId)
+                .payload("{\"userId\": \"" + payment.getUserId()
+                        + "\", \"amount\": " + payment.getAmount()
+                        + ", \"status\": \"APPROVED, balance added\"}")
                 .build());
     }
 

@@ -46,6 +46,9 @@ public interface ChargeRecordMapper {
     @Select("SELECT * FROM charge_records ORDER BY start_time DESC")
     List<ChargeRecord> findAll();
 
+    @Select("SELECT * FROM charge_records WHERE status = 'PROCESSING'")
+    List<ChargeRecord> findProcessingRecords();
+
     @Select("SELECT COUNT(*) FROM charge_records WHERE user_id = #{userId} AND status = 'PROCESSING'")
     int countProcessingByUserId(UUID userId);
 
