@@ -70,6 +70,12 @@ charging:
   min-balance: 10.00
   arrears-freeze-days: 30
 
+# Advanced API Key (测试环境专用)
+advanced:
+  api-key:
+    enabled: false
+    key: ""
+
 logging:
   level:
     com.charging: DEBUG

@@ -17,6 +17,7 @@ import com.charging.mapper.AuditLogMapper;
 import com.charging.mapper.ChargeRecordMapper;
 import com.charging.mapper.ChargerMapper;
 import com.charging.mapper.UserMapper;
+import com.charging.infrastructure.connector.ChargerConnector;
 import com.charging.service.BillingService;
 import com.charging.service.ChargingService;
 import com.charging.service.PaymentService;
@@ -42,6 +43,7 @@ public class ChargingServiceImpl implements ChargingService {
     private final AuditLogMapper auditLogMapper;
     private final PaymentService paymentService;
     private final BillingService billingService;
+    private final ChargerConnector chargerConnector;
 
     @Value("${charging.min-balance:10.00}")
     private BigDecimal minBalance;
@@ -95,6 +97,9 @@ public class ChargingServiceImpl implements ChargingService {
                 .build();
 
         chargeRecordMapper.insert(record);
+
+        // Notify charger via connector
+        chargerConnector.notifyStart(charger.getChargerCode(), record.getId());
 
         // Audit log
         auditLogMapper.insert(AuditLog.builder()
@@ -196,6 +201,9 @@ public class ChargingServiceImpl implements ChargingService {
         // Release charger
         chargerMapper.updateStatusConditionally(charger.getId(), "IDLE", "CHARGING");
 
+        // Notify charger via connector
+        chargerConnector.notifyStop(charger.getChargerCode(), recordId);
+
         return ChargeResponse.builder()
                 .recordId(recordId)
                 .endTime(LocalDateTime.now())
@@ -289,6 +297,9 @@ public class ChargingServiceImpl implements ChargingService {
 
         // Release charger
         chargerMapper.updateStatusConditionally(charger.getId(), "IDLE", "CHARGING");
+
+        // Notify charger via connector
+        chargerConnector.notifyStop(charger.getChargerCode(), recordId);
 
         return ChargeResponse.builder()
                 .recordId(recordId)
