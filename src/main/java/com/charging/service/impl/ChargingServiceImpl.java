@@ -436,6 +436,48 @@ public class ChargingServiceImpl implements ChargingService {
         return buildChargeResult(records);
     }
 
+    @Override
+    @Transactional
+    public int forceStopByChargerId(UUID chargerId, String reason) {
+        // 查找该充电桩上正在进行的充电记录
+        List<ChargeRecord> processingRecords = chargeRecordMapper.findProcessingByChargerId(chargerId);
+        int stopped = 0;
+        for (ChargeRecord record : processingRecords) {
+            try {
+                Charger charger = chargerMapper.findById(chargerId)
+                        .orElseThrow(() -> BusinessException.notFound("Charger", chargerId.toString()));
+
+                // 按实际充电时长估算用电量和费用
+                BigDecimal energyKwh = estimateEnergyKwh(charger.getType(), record.getStartTime());
+                BigDecimal fee = billingService.calculateFee(charger.getType(), energyKwh);
+
+                // 结束充电记录，标记为欠费（离线场景下无法正常扣费）
+                chargeRecordMapper.completeRecord(record.getId(), energyKwh, fee, "ARREARS");
+                userMapper.freezeAccount(record.getUserId());
+                chargerMapper.updateStatusConditionally(charger.getId(), "IDLE", "CHARGING");
+                chargerConnector.notifyStop(charger.getChargerCode(), record.getId());
+
+                // 记录审计日志
+                auditLogMapper.insert(AuditLog.builder()
+                        .id(UUID.randomUUID())
+                        .actorId(record.getUserId())
+                        .actorType("system")
+                        .action("FORCE_STOP_OFFLINE")
+                        .resource("charge_record")
+                        .resourceId(record.getId())
+                        .payload("{\"reason\": \"" + sanitizeReason(reason) + "\"}")
+                        .build());
+                stopped++;
+                log.warn("Force-stopped charge {} on offline charger {} (reason: {})",
+                        record.getId(), charger.getChargerCode(), reason);
+            } catch (Exception e) {
+                log.error("Error force-stopping charge record {} on offline charger",
+                        record.getId(), e);
+            }
+        }
+        return stopped;
+    }
+
     /**
      * Build enriched charge record response from DB query results.
      * Converts snake_case DB columns to camelCase JSON keys.

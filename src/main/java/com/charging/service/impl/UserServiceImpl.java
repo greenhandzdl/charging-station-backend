@@ -579,7 +579,7 @@ public class UserServiceImpl implements UserService {
 
     private void validateCaptcha(String captchaId, String captchaCode) {
         if (captchaId == null || captchaCode == null || captchaId.isBlank() || captchaCode.isBlank()) {
-            return; // captcha is optional
+            throw BusinessException.badRequest("验证码不能为空");
         }
         String key = CAPTCHA_PREFIX + captchaId;
         String stored = (String) redisTemplate.opsForValue().get(key);

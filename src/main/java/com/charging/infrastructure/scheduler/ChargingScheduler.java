@@ -39,7 +39,7 @@ public class ChargingScheduler {
     }
 
     /**
-     * 每 60 秒扫描充电桩心跳，标记离线。
+     * 每 60 秒扫描充电桩心跳，标记离线，并自动停止离线桩上的充电记录。
      */
     @Scheduled(fixedDelay = 60000)
     public void checkOfflineChargers() {
@@ -58,6 +58,14 @@ public class ChargingScheduler {
                     markedOffline++;
                     log.warn("Charger {} (id={}) marked OFFLINE - last heartbeat: {}",
                             charger.getChargerCode(), charger.getId(), charger.getLastHeartbeatAt());
+
+                    // 自动停止该离线桩上所有进行中的充电
+                    int stopped = chargingService.forceStopByChargerId(charger.getId(), "CHARGER_OFFLINE");
+                    if (stopped > 0) {
+                        stoppedCharges += stopped;
+                        log.warn("Auto-stopped {} charge(s) on offline charger {} (id={})",
+                                stopped, charger.getChargerCode(), charger.getId());
+                    }
                 }
             }
         }
