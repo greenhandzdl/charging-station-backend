@@ -533,9 +533,14 @@ public class UserServiceImpl implements UserService {
             throw BusinessException.forbidden("不可修改自身角色");
         }
 
-        // ADMIN cannot promote self or modify other ADMIN
-        if (currentUserRole.equals("ADMIN") && target.getRole() == UserRole.ADMIN) {
-            throw BusinessException.forbidden("ADMIN不可修改其他ADMIN角色");
+        // ADMIN cannot promote self or modify other ADMIN or SUPER_ADMIN
+        if (currentUserRole.equals("ADMIN")) {
+            if (target.getRole() == UserRole.ADMIN) {
+                throw BusinessException.forbidden("ADMIN不可修改其他ADMIN角色");
+            }
+            if (target.getRole() == UserRole.SUPER_ADMIN) {
+                throw BusinessException.forbidden("ADMIN不可修改SUPER_ADMIN角色");
+            }
         }
 
         UserRole newRole;

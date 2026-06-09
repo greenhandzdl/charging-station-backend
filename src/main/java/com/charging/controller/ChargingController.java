@@ -69,17 +69,18 @@ public class ChargingController {
 
 
     @PostMapping("/chargers/heartbeat")
-    @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<Map<String, Object>> receiveHeartbeat(@RequestBody Map<String, String> request,
-                                                                 @AuthenticationPrincipal JwtUserPrincipal principal) {
+    public ResponseEntity<Map<String, Object>> receiveHeartbeat(@RequestBody Map<String, String> request) {
         String chargerCode = request.get("chargerCode");
         if (chargerCode == null || chargerCode.isEmpty()) {
             return ResponseEntity.badRequest().body(Map.of("error", "chargerCode is required"));
         }
 
-        // Find charger by code
-        Charger charger = chargerMapper.findByChargerCode(chargerCode)
-                .orElseThrow(() -> BusinessException.notFound("Charger", chargerCode));
+        // Gracefully handle unknown chargers (heartbeat is fire-and-forget telemetry)
+        Charger charger = chargerMapper.findByChargerCode(chargerCode).orElse(null);
+        if (charger == null) {
+            log.warn("Heartbeat received for unknown charger: {} (ignored)", chargerCode);
+            return ResponseEntity.ok(Map.of("status", "IGNORED", "chargerCode", chargerCode, "reason", "unknown_charger"));
+        }
 
         // Update heartbeat timestamp and online status
         chargerMapper.updateHeartbeat(charger.getId());

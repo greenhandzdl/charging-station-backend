@@ -29,6 +29,8 @@ import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.*;
 
@@ -47,6 +49,32 @@ public class ChargingServiceImpl implements ChargingService {
 
     @Value("${charging.min-balance:10.00}")
     private BigDecimal minBalance;
+
+    @Value("${charging.fast-rate-kwh-per-hour:60}")
+    private double fastRateKwhPerHour;
+
+    @Value("${charging.slow-rate-kwh-per-hour:7}")
+    private double slowRateKwhPerHour;
+
+    /**
+     * 根据充电桩类型和充电时长计算估算用电量（kWh）。
+     * 快充桩默认 60 kWh/h，慢充桩默认 7 kWh/h。
+     */
+    private BigDecimal estimateEnergyKwh(ChargerType type, LocalDateTime startTime) {
+        Duration duration = Duration.between(startTime, LocalDateTime.now());
+        double hours = duration.getSeconds() / 3600.0;
+        if (hours <= 0) {
+            hours = 0.5; // 至少按30分钟估算
+        }
+        double rate = type == ChargerType.FAST ? fastRateKwhPerHour : slowRateKwhPerHour;
+        double energy = hours * rate;
+        // 上限保护：快充最高 200 kWh，慢充最高 100 kWh
+        double maxEnergy = type == ChargerType.FAST ? 200.0 : 100.0;
+        if (energy > maxEnergy) {
+            energy = maxEnergy;
+        }
+        return BigDecimal.valueOf(energy).setScale(1, RoundingMode.HALF_UP);
+    }
 
     @Override
     @Transactional
@@ -143,7 +171,7 @@ public class ChargingServiceImpl implements ChargingService {
 
                 // If balance < min_balance, auto-stop
                 if (user.getBalance().compareTo(minBalance) < 0) {
-                    BigDecimal energyKwh = new BigDecimal("15.0");
+                    BigDecimal energyKwh = estimateEnergyKwh(charger.getType(), record.getStartTime());
                     BigDecimal fee = billingService.calculateFee(charger.getType(), energyKwh);
 
                     chargeRecordMapper.completeRecord(record.getId(), energyKwh, fee, "ARREARS");
@@ -193,8 +221,8 @@ public class ChargingServiceImpl implements ChargingService {
         Charger charger = chargerMapper.findById(record.getChargerId())
                 .orElseThrow(() -> BusinessException.notFound("Charger", record.getChargerId().toString()));
 
-        // Calculate fee
-        BigDecimal energyKwh = new BigDecimal("15.0"); // Mock energy - in real system from simulation
+        // Calculate fee based on actual charging duration
+        BigDecimal energyKwh = estimateEnergyKwh(charger.getType(), record.getStartTime());
         BigDecimal fee = billingService.calculateFee(charger.getType(), energyKwh);
 
         boolean balanceSufficient = false;
@@ -292,8 +320,8 @@ public class ChargingServiceImpl implements ChargingService {
         User user = userMapper.findByIdWithLock(record.getUserId())
                 .orElseThrow(() -> BusinessException.notFound("User", record.getUserId().toString()));
 
-        // Calculate fee
-        BigDecimal energyKwh = new BigDecimal("15.0"); // Mock energy
+        // Calculate fee based on actual charging duration
+        BigDecimal energyKwh = estimateEnergyKwh(charger.getType(), record.getStartTime());
         BigDecimal fee = billingService.calculateFee(charger.getType(), energyKwh);
 
         DeductionStatus deductionStatus;
@@ -370,7 +398,25 @@ public class ChargingServiceImpl implements ChargingService {
         boolean isAdmin = "ADMIN".equals(userRole) || "SUPER_ADMIN".equals(userRole);
 
         String status = params.get("status");
+        String recordId = params.get("recordId");
         List<Map<String, Object>> records;
+
+        // If filtering by specific recordId (used by Mock client getChargeStatus)
+        if (recordId != null && !recordId.isEmpty()) {
+            try {
+                UUID rid = UUID.fromString(recordId);
+                Map<String, Object> single = chargeRecordMapper.findEnrichedById(rid);
+                if (single != null) {
+                    records = List.of(single);
+                } else {
+                    records = List.of();
+                }
+                return buildChargeResult(records);
+            } catch (IllegalArgumentException e) {
+                return List.of();
+            }
+        }
+
         if (isAdmin) {
             if (status != null) {
                 records = chargeRecordMapper.findEnrichedByStatus(status);
@@ -387,6 +433,14 @@ public class ChargingServiceImpl implements ChargingService {
             }
         }
 
+        return buildChargeResult(records);
+    }
+
+    /**
+     * Build enriched charge record response from DB query results.
+     * Converts snake_case DB columns to camelCase JSON keys.
+     */
+    private List<Map<String, Object>> buildChargeResult(List<Map<String, Object>> records) {
         List<Map<String, Object>> result = new ArrayList<>();
         for (Map<String, Object> r : records) {
             Map<String, Object> m = new LinkedHashMap<>();

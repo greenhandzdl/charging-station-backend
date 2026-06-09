@@ -41,8 +41,8 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/payments/callback").permitAll()
                         .requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**").permitAll()
                         .requestMatchers("/actuator/health").permitAll()
-                        // Heartbeat endpoint: authenticated (Mock Swing in both normal/advanced mode)
-                        .requestMatchers(HttpMethod.POST, "/api/v1/chargers/heartbeat").authenticated()
+                        // Heartbeat endpoint: permitAll (遥测来自模拟充电桩，无需认证)
+                        .requestMatchers(HttpMethod.POST, "/api/v1/chargers/heartbeat").permitAll()
                         // Statistics export: admin/advanced only
                         .requestMatchers("/api/v1/analytics/export").hasAnyAuthority("SCOPE_admin", "SCOPE_advanced")
                         // All other requests require authentication

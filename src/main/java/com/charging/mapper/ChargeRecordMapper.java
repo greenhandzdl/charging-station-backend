@@ -113,6 +113,17 @@ public interface ChargeRecordMapper {
             "JOIN users u ON cr.user_id = u.id " +
             "JOIN chargers ch ON cr.charger_id = ch.id " +
             "JOIN stations s ON ch.station_id = s.id " +
+            "WHERE cr.id = #{id}")
+    Map<String, Object> findEnrichedById(@Param("id") UUID id);
+
+    @Select("SELECT cr.id, cr.user_id, cr.charger_id, cr.start_time, cr.end_time, " +
+            "cr.energy_kwh, cr.fee, cr.status, cr.deduction_status, " +
+            "u.name as user_name, u.plate_number, " +
+            "ch.charger_code, s.name as station_name " +
+            "FROM charge_records cr " +
+            "JOIN users u ON cr.user_id = u.id " +
+            "JOIN chargers ch ON cr.charger_id = ch.id " +
+            "JOIN stations s ON ch.station_id = s.id " +
             "WHERE cr.status = #{status} ORDER BY cr.start_time DESC")
     List<Map<String, Object>> findEnrichedByStatus(@Param("status") String status);
 

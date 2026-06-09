@@ -169,6 +169,7 @@ class ChargingServiceTest {
                 .chargerId(chargerId)
                 .status(RecordStatus.PROCESSING)
                 .deductionStatus(DeductionStatus.PENDING)
+                .startTime(LocalDateTime.now().minusMinutes(30))
                 .build();
 
         when(chargeRecordMapper.findByIdWithLock(recordId)).thenReturn(java.util.Map.of("id", recordId));
@@ -195,6 +196,7 @@ class ChargingServiceTest {
                 .userId(userId)
                 .chargerId(chargerId)
                 .status(RecordStatus.PROCESSING)
+                .startTime(LocalDateTime.now().minusMinutes(30))
                 .build();
 
         when(chargeRecordMapper.findByIdWithLock(recordId)).thenReturn(java.util.Map.of("id", recordId));
@@ -222,6 +224,7 @@ class ChargingServiceTest {
                 .userId(userId)
                 .chargerId(chargerId)
                 .status(RecordStatus.PROCESSING)
+                .startTime(LocalDateTime.now().minusMinutes(30))
                 .build();
 
         when(chargeRecordMapper.findByIdWithLock(recordId)).thenReturn(java.util.Map.of("id", recordId));
