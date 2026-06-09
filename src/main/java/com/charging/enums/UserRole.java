@@ -4,5 +4,6 @@ public enum UserRole {
     USER,
     MAINTAINER,
     ADMIN,
-    SUPER_ADMIN
+    SUPER_ADMIN,
+    CHARGER
 }

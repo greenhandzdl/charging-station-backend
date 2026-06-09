@@ -20,10 +20,12 @@ import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 /**
- * CaptchaController 生成图片验证码。
+ * CaptchaController 生成图片验证码（MOCK 实现）。
  * <p>
- * 生成 4 字符验证码图片（字母+数字），不添加强干扰以便识别。
- * 验证码 id 和 base64 图片返回给前端，code 仅存储 Redis 用于校验。
+ * 此为课程设计级 mock 实现：
+ * - 验证码同时以明文返回（captchaCode），仅用于开发调试
+ * - 生产环境应移除 captchaCode 字段
+ * - 图片验证码使用 AWT BufferedImage 绘制，无头环境可能不可用
  */
 @RestController
 @RequestMapping("/api/v1/captcha")
@@ -54,13 +56,21 @@ public class CaptchaController {
         String key = CAPTCHA_PREFIX + captchaId;
         redisTemplate.opsForValue().set(key, code, CAPTCHA_TTL_MINUTES, TimeUnit.MINUTES);
 
-        // 生成图片
+        // 生成图片（可能因为无头环境失败）
         String imageBase64 = generateCaptchaImage(code);
 
-        return ResponseEntity.ok(Map.of(
-                "captchaId", captchaId,
-                "image", "data:image/png;base64," + imageBase64
-        ));
+        Map<String, String> result = new java.util.LinkedHashMap<>();
+        result.put("captchaId", captchaId);
+        result.put("captchaCode", code); // 调试用——前端可直接显示文字
+
+        if (imageBase64 != null && !imageBase64.isEmpty()) {
+            result.put("image", "data:image/png;base64," + imageBase64);
+        } else {
+            // AWT 不可用时返回纯文本验证码
+            result.put("image", "");
+        }
+
+        return ResponseEntity.ok(result);
     }
 
     /**

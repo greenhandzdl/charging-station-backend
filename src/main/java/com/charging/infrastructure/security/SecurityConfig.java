@@ -65,7 +65,8 @@ public class SecurityConfig {
         roleHierarchy.setHierarchy(
                 "ROLE_SUPER_ADMIN > ROLE_ADMIN\n" +
                 "ROLE_ADMIN > ROLE_MAINTAINER\n" +
-                "ROLE_MAINTAINER > ROLE_USER"
+                "ROLE_MAINTAINER > ROLE_USER\n" +
+                "ROLE_USER > ROLE_CHARGER"
         );
         return roleHierarchy;
     }
