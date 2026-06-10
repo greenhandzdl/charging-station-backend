@@ -570,6 +570,14 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
+    public List<User> searchUsers(String keyword) {
+        if (keyword == null || keyword.isBlank()) {
+            return userMapper.findAll();
+        }
+        return userMapper.searchByKeyword(keyword.trim());
+    }
+
+    @Override
     public User findById(UUID id) {
         return userMapper.findById(id)
                 .orElseThrow(() -> BusinessException.notFound("User", id.toString()));

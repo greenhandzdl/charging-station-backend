@@ -20,5 +20,6 @@ public interface UserService {
     void deleteUser(UUID id, UUID currentUserId, String currentUserRole);
     BigDecimal getBalance(UUID userId);
     void changeRole(UUID id, ChangeRoleRequest request, UUID currentUserId, String currentUserRole, String clientIp);
+    List<User> searchUsers(String keyword);
     User findById(UUID id);
 }

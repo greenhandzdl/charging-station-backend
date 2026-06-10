@@ -20,6 +20,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -384,6 +386,87 @@ class UserServiceTest {
         verify(userMapper).update(argThat(u -> u.getRole() == UserRole.ADMIN));
         verify(auditLogMapper).insert(argThat(log ->
                 "CHANGE_ROLE".equals(log.getAction())));
+    }
+
+
+
+    // ==================== searchUsers Tests ====================
+
+    @Test
+    void searchUsers_byName_returnsMatches() {
+        User match1 = User.builder()
+                .id(UUID.randomUUID())
+                .name("张三")
+                .phone("13800138001")
+                .role(UserRole.USER)
+                .build();
+        User match2 = User.builder()
+                .id(UUID.randomUUID())
+                .name("张三丰")
+                .phone("13800138002")
+                .role(UserRole.USER)
+                .build();
+        User nonMatch = User.builder()
+                .id(UUID.randomUUID())
+                .name("李四")
+                .phone("13800138003")
+                .role(UserRole.USER)
+                .build();
+
+        when(userMapper.searchByKeyword("张三")).thenReturn(List.of(match1, match2));
+
+        List<User> result = userService.searchUsers("张三");
+
+        assertEquals(2, result.size());
+        assertTrue(result.stream().anyMatch(u -> "张三".equals(u.getName())));
+        assertTrue(result.stream().anyMatch(u -> "张三丰".equals(u.getName())));
+    }
+
+    @Test
+    void searchUsers_byPhone_returnsMatches() {
+        User found = User.builder()
+                .id(UUID.randomUUID())
+                .name("TestUser")
+                .phone("13800138000")
+                .role(UserRole.USER)
+                .build();
+
+        when(userMapper.searchByKeyword("13800138000")).thenReturn(List.of(found));
+
+        List<User> result = userService.searchUsers("13800138000");
+
+        assertEquals(1, result.size());
+        assertEquals("13800138000", result.get(0).getPhone());
+    }
+
+    @Test
+    void searchUsers_emptyKeyword_returnsAll() {
+        User u1 = User.builder().id(UUID.randomUUID()).name("User1").phone("1").build();
+        User u2 = User.builder().id(UUID.randomUUID()).name("User2").phone("2").build();
+        when(userMapper.findAll()).thenReturn(List.of(u1, u2));
+
+        List<User> result = userService.searchUsers("");
+
+        assertEquals(2, result.size());
+    }
+
+    @Test
+    void searchUsers_nullKeyword_returnsAll() {
+        User u1 = User.builder().id(UUID.randomUUID()).name("User1").phone("1").build();
+        when(userMapper.findAll()).thenReturn(List.of(u1));
+
+        List<User> result = userService.searchUsers(null);
+
+        assertEquals(1, result.size());
+    }
+
+    @Test
+    void searchUsers_noMatch_returnsEmpty() {
+        when(userMapper.searchByKeyword("不存在的关键词")).thenReturn(List.of());
+
+        List<User> result = userService.searchUsers("不存在的关键词");
+
+        assertTrue(result.isEmpty());
     }
 
     private void setField(Object target, String fieldName, Object value) throws Exception {

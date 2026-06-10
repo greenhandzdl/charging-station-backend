@@ -15,5 +15,6 @@ public interface ChargingService {
     ChargeResponse forceStop(UUID adminId, UUID recordId, ForceStopRequest request, String clientIp);
     List<Map<String, Object>> queryCharges(UUID userId, String userRole, Map<String, String> params);
     int autoStopOnInsufficientBalance();
+    void plugIn(UUID recordId);
     int forceStopByChargerId(UUID chargerId, String reason);
 }

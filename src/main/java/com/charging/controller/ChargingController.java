@@ -89,6 +89,13 @@ public class ChargingController {
         return ResponseEntity.ok(Map.of("status", "OK", "chargerCode", chargerCode));
     }
 
+    @PostMapping("/charges/{recordId}/plug-in")
+    @PreAuthorize("hasAnyAuthority('SCOPE_advanced') or hasRole('CHARGER')")
+    public ResponseEntity<Map<String, String>> plugIn(@PathVariable UUID recordId) {
+        chargingService.plugIn(recordId);
+        return ResponseEntity.ok(Map.of("message", "插枪成功"));
+    }
+    
     private String getClientIp(jakarta.servlet.http.HttpServletRequest request) {
         String ip = request.getHeader("X-Forwarded-For");
         if (ip == null || ip.isEmpty()) {

@@ -102,6 +102,12 @@ public class UserController {
         return ResponseEntity.ok(Map.of("message", "删除成功"));
     }
 
+    @GetMapping("/users/search")
+    @PreAuthorize("hasAnyRole('ADMIN', 'SUPER_ADMIN')")
+    public ResponseEntity<List<User>> searchUsers(@RequestParam String keyword) {
+        return ResponseEntity.ok(userService.searchUsers(keyword));
+    }
+
     @GetMapping("/users/balance")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<Map<String, BigDecimal>> getBalance(

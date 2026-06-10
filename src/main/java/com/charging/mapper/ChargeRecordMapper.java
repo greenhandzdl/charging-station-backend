@@ -14,8 +14,11 @@ import java.util.UUID;
 public interface ChargeRecordMapper {
 
     @Insert("INSERT INTO charge_records (id, user_id, charger_id, start_time, status, deduction_status, created_at) " +
-            "VALUES (#{id}, #{userId}, #{chargerId}, now(), 'PROCESSING', 'PENDING', now())")
+            "VALUES (#{id}, #{userId}, #{chargerId}, NULL, 'PROCESSING', 'PENDING', now())")
     int insert(ChargeRecord record);
+
+    @Update("UPDATE charge_records SET start_time = now() WHERE id = #{id} AND start_time IS NULL")
+    int setStartTime(UUID id);
 
     @Update("UPDATE charge_records SET end_time = now(), energy_kwh = #{energy}, fee = #{fee}, " +
             "status = 'COMPLETED', deduction_status = #{deductionStatus} WHERE id = #{id}")
@@ -48,6 +51,9 @@ public interface ChargeRecordMapper {
 
     @Select("SELECT * FROM charge_records WHERE status = 'PROCESSING'")
     List<ChargeRecord> findProcessingRecords();
+
+    @Select("SELECT * FROM charge_records WHERE status = 'PROCESSING' AND start_time IS NOT NULL")
+    List<ChargeRecord> findProcessingRecordsWithStartTime();
 
     @Select("SELECT * FROM charge_records WHERE charger_id = #{chargerId} AND status = 'PROCESSING'")
     List<ChargeRecord> findProcessingByChargerId(@Param("chargerId") UUID chargerId);

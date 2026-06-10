@@ -65,7 +65,6 @@ class ChargingServiceTest {
         chargingService = new ChargingServiceImpl(chargerMapper, chargeRecordMapper, userMapper,
                 auditLogMapper, paymentService, billingService, chargerConnector);
 
-        // Set minBalance via reflection
         setField(chargingService, "minBalance", new BigDecimal("10.00"));
 
         userId = UUID.randomUUID();
@@ -241,6 +240,115 @@ class ChargingServiceTest {
         assertNotNull(response);
         assertEquals("COMPLETED", response.getStatus());
         verify(userMapper).freezeAccount(userId);
+    }
+
+    // ==================== plugIn Tests ====================
+
+    @Test
+    void plugIn_shouldSetStartTime() {
+        ChargeRecord record = ChargeRecord.builder()
+                .id(recordId)
+                .userId(userId)
+                .chargerId(chargerId)
+                .status(RecordStatus.PROCESSING)
+                .startTime(null)
+                .build();
+
+        when(chargeRecordMapper.findById(recordId)).thenReturn(Optional.of(record));
+        when(chargeRecordMapper.setStartTime(recordId)).thenReturn(1);
+        when(auditLogMapper.insert(any())).thenReturn(1);
+
+        chargingService.plugIn(recordId);
+
+        verify(chargeRecordMapper).setStartTime(recordId);
+        verify(auditLogMapper).insert(argThat(log ->
+                "PLUG_IN".equals(log.getAction())));
+    }
+
+    @Test
+    void plugIn_duplicateCall_shouldThrow() {
+        ChargeRecord record = ChargeRecord.builder()
+                .id(recordId)
+                .userId(userId)
+                .chargerId(chargerId)
+                .status(RecordStatus.PROCESSING)
+                .startTime(LocalDateTime.now())
+                .build();
+
+        when(chargeRecordMapper.findById(recordId)).thenReturn(Optional.of(record));
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> chargingService.plugIn(recordId));
+        assertTrue(ex.getMessage().contains("已插枪"));
+    }
+
+    @Test
+    void plugIn_nonProcessingRecord_shouldThrow() {
+        ChargeRecord record = ChargeRecord.builder()
+                .id(recordId)
+                .userId(userId)
+                .chargerId(chargerId)
+                .status(RecordStatus.COMPLETED)
+                .startTime(null)
+                .build();
+
+        when(chargeRecordMapper.findById(recordId)).thenReturn(Optional.of(record));
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> chargingService.plugIn(recordId));
+        assertTrue(ex.getMessage().contains("记录状态不允许插枪"));
+    }
+
+    @Test
+    void plugIn_nonexistentRecord_shouldThrow() {
+        when(chargeRecordMapper.findById(recordId)).thenReturn(Optional.empty());
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> chargingService.plugIn(recordId));
+        assertTrue(ex.getMessage().contains("ChargeRecord"));
+    }
+
+    // ==================== estimateEnergyKwh Tests ====================
+
+    @Test
+    void estimateEnergyKwh_nullStartTime_returnsZero() {
+        try {
+            java.lang.reflect.Method method = ChargingServiceImpl.class.getDeclaredMethod(
+                    "estimateEnergyKwh", ChargerType.class, LocalDateTime.class);
+            method.setAccessible(true);
+
+            ChargerType type = ChargerType.FAST;
+            BigDecimal result = (BigDecimal) method.invoke(chargingService, type, (LocalDateTime) null);
+
+            assertEquals(BigDecimal.ZERO.setScale(1, java.math.RoundingMode.HALF_UP), result);
+        } catch (Exception e) {
+            throw new RuntimeException("Reflection failed", e);
+        }
+    }
+
+    // ==================== autoStopOnInsufficientBalance Tests ====================
+
+    @Test
+    void autoStopOnInsufficientBalance_skipNullStartTime() {
+        testUser.setBalance(new BigDecimal("5.00"));
+
+        // Record with null startTime -- findProcessingRecordsWithStartTime() filters these out
+        ChargeRecord record = ChargeRecord.builder()
+                .id(recordId)
+                .userId(userId)
+                .chargerId(chargerId)
+                .status(RecordStatus.PROCESSING)
+                .startTime(null)
+                .build();
+
+        // findProcessingRecordsWithStartTime() only returns records WHERE start_time IS NOT NULL,
+        // so our record with null startTime will NOT be returned
+        when(chargeRecordMapper.findProcessingRecordsWithStartTime()).thenReturn(java.util.List.of());
+
+        chargingService.autoStopOnInsufficientBalance();
+
+        // Since no records are returned, the loop body never executes
+        verify(chargeRecordMapper, never()).completeRecord(any(), any(), any(), any());
     }
 
     private void setField(Object target, String fieldName, Object value) {

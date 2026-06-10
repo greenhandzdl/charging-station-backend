@@ -61,6 +61,9 @@ public class ChargingServiceImpl implements ChargingService {
      * 快充桩默认 60 kWh/h，慢充桩默认 7 kWh/h。
      */
     private BigDecimal estimateEnergyKwh(ChargerType type, LocalDateTime startTime) {
+        if (startTime == null) {
+            return BigDecimal.ZERO.setScale(1, RoundingMode.HALF_UP);
+        }
         Duration duration = Duration.between(startTime, LocalDateTime.now());
         double hours = duration.getSeconds() / 3600.0;
         if (hours <= 0) {
@@ -124,7 +127,6 @@ public class ChargingServiceImpl implements ChargingService {
                 .id(UUID.randomUUID())
                 .userId(userId)
                 .chargerId(chargerId)
-                .startTime(LocalDateTime.now())
                 .status(RecordStatus.PROCESSING)
                 .deductionStatus(DeductionStatus.PENDING)
                 .build();
@@ -152,6 +154,42 @@ public class ChargingServiceImpl implements ChargingService {
                 .build();
     }
 
+    @Override
+    @Transactional
+    public void plugIn(UUID recordId) {
+        // Find the charge record
+        ChargeRecord record = chargeRecordMapper.findById(recordId)
+                .orElseThrow(() -> BusinessException.notFound("ChargeRecord", recordId.toString()));
+
+        // Validate it exists and has status PROCESSING
+        if (record.getStatus() != RecordStatus.PROCESSING) {
+            throw BusinessException.conflict("记录状态不允许插枪");
+        }
+
+        // Validate startTime IS NULL (not already plugged in)
+        if (record.getStartTime() != null) {
+            throw BusinessException.conflict("已插枪，不可重复操作");
+        }
+
+        // Set start time
+        int updated = chargeRecordMapper.setStartTime(recordId);
+        if (updated == 0) {
+            throw BusinessException.conflict("插枪失败，记录状态异常");
+        }
+
+        // Audit log
+        auditLogMapper.insert(AuditLog.builder()
+                .id(UUID.randomUUID())
+                .actorId(record.getUserId())
+                .actorType("user")
+                .action("PLUG_IN")
+                .resource("charge_record")
+                .resourceId(recordId)
+                .build());
+
+        log.info("Plugged in charge record: {}", recordId);
+    }
+
     /**
      * 定时检查进行中的充电记录，当用户余额低于阈值时自动停止充电。
      * 由 ChargingScheduler 定期调用（每 30 秒）。
@@ -159,7 +197,7 @@ public class ChargingServiceImpl implements ChargingService {
     @Override
     @Transactional
     public int autoStopOnInsufficientBalance() {
-        List<ChargeRecord> processingRecords = chargeRecordMapper.findProcessingRecords();
+        List<ChargeRecord> processingRecords = chargeRecordMapper.findProcessingRecordsWithStartTime();
         int stopped = 0;
         for (ChargeRecord record : processingRecords) {
             try {

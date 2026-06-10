@@ -81,6 +81,8 @@ public interface UserMapper {
             "</script>")
     int update(@Param("user") User user);
 
+    @Select("SELECT * FROM users WHERE name ILIKE '%' || #{keyword} || '%' OR phone ILIKE '%' || #{keyword} || '%' ORDER BY name ASC")
+    List<User> searchByKeyword(@Param("keyword") String keyword);
     @Delete("DELETE FROM users WHERE id = #{id}")
     int deleteById(UUID id);
 }
