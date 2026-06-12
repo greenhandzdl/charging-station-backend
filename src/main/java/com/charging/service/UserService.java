@@ -16,6 +16,7 @@ public interface UserService {
     void confirmPasswordReset(PasswordResetConfirmRequest request, String clientIp);
     void changePassword(UUID userId, ChangePasswordRequest request, String clientIp);
     List<User> listUsers(Map<String, String> params);
+    User updateProfile(UUID userId, UpdateUserRequest request);
     User updateUser(UUID id, UpdateUserRequest request, UUID currentUserId, String currentUserRole);
     void deleteUser(UUID id, UUID currentUserId, String currentUserRole);
     BigDecimal getBalance(UUID userId);

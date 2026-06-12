@@ -117,6 +117,15 @@ public class UserController {
         return ResponseEntity.ok(Map.of("balance", balance));
     }
 
+    @PutMapping("/users/profile")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<User> updateProfile(@Valid @RequestBody UpdateUserRequest request,
+                                              @AuthenticationPrincipal JwtUserPrincipal principal) {
+        UUID userId = UUID.fromString(principal.getUserId());
+        User updated = userService.updateProfile(userId, request);
+        return ResponseEntity.ok(updated);
+    }
+
     @PutMapping("/users/{id}/role")
     @PreAuthorize("hasAnyRole('ADMIN', 'SUPER_ADMIN')")
     public ResponseEntity<Map<String, String>> changeRole(@PathVariable UUID id,

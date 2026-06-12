@@ -487,6 +487,31 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional
+    public User updateProfile(UUID userId, UpdateUserRequest request) {
+        User user = userMapper.findById(userId)
+                .orElseThrow(() -> BusinessException.notFound("User", userId.toString()));
+
+        user.setName(request.getName() != null ? request.getName() : user.getName());
+        user.setPlateNumber(request.getPlateNumber() != null ? request.getPlateNumber() : user.getPlateNumber());
+        user.setUpdatedAt(LocalDateTime.now());
+
+        userMapper.update(user);
+
+        // Audit log
+        auditLogMapper.insert(AuditLog.builder()
+                .id(UUID.randomUUID())
+                .actorId(userId)
+                .actorType("user")
+                .action("UPDATE_PROFILE")
+                .resource("user")
+                .resourceId(userId)
+                .build());
+
+        return user;
+    }
+
+    @Override
+    @Transactional
     public void deleteUser(UUID id, UUID currentUserId, String currentUserRole) {
         User target = userMapper.findById(id)
                 .orElseThrow(() -> BusinessException.notFound("User", id.toString()));

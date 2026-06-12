@@ -90,7 +90,7 @@ public class ChargingController {
     }
 
     @PostMapping("/chargers/{id}/plug-in")
-    @PreAuthorize("hasAuthority('SCOPE_device')")
+    @PreAuthorize("hasAuthority('SCOPE_charger')")
     public ResponseEntity<Map<String, Object>> plugIn(@PathVariable UUID id,
                                                       @AuthenticationPrincipal JwtUserPrincipal principal) {
         UUID deviceUserId = UUID.fromString(principal.getUserId());
@@ -99,7 +99,7 @@ public class ChargingController {
     }
 
     @PostMapping("/chargers/{id}/unplug")
-    @PreAuthorize("hasAuthority('SCOPE_device')")
+    @PreAuthorize("hasAuthority('SCOPE_charger')")
     public ResponseEntity<Map<String, Object>> unplug(@PathVariable UUID id) {
         Map<String, Object> result = chargingService.unplug(id);
         return ResponseEntity.ok(result);

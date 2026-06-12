@@ -25,7 +25,7 @@ public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final AdvancedApiKeyFilter advancedApiKeyFilter;
-    private final DeviceAuthFilter deviceAuthFilter;
+    private final ChargerAuthFilter chargerAuthFilter;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -42,6 +42,8 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/payments/callback").permitAll()
                         .requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**").permitAll()
                         .requestMatchers("/actuator/health").permitAll()
+                        // Charger login endpoint (separate from user login)
+                        .requestMatchers("/api/v1/auth/charger-login").permitAll()
                         // Heartbeat endpoint: permitAll (遥测来自模拟充电桩，无需认证)
                         .requestMatchers(HttpMethod.POST, "/api/v1/chargers/heartbeat").permitAll()
                         // Statistics export: admin/advanced only
@@ -49,7 +51,7 @@ public class SecurityConfig {
                         // All other requests require authentication
                         .anyRequest().authenticated()
                 )
-                .addFilterBefore(deviceAuthFilter, UsernamePasswordAuthenticationFilter.class)
+                .addFilterBefore(chargerAuthFilter, UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(advancedApiKeyFilter, UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
