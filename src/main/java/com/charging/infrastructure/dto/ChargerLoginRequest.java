@@ -12,8 +12,8 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class ChargerLoginRequest {
 
-    @NotBlank(message = "手机号不能为空")
-    private String phone;
+    @NotBlank(message = "登录账号不能为空")
+    private String loginId;
 
     @NotBlank(message = "密码不能为空")
     private String password;

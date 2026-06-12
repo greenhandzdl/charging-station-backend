@@ -34,9 +34,12 @@ public class ChargerTokenProvider {
 
     /**
      * Generate charger-scoped JWT.
-     * Claims: sub=chargerUserId, chargerId=xxx, identityType=SINGLE|GLOBAL, scope=charger
+     * Claims: sub=chargerUserId, permissionLevel=CHARGER|STATION|STATION_GLOBAL,
+     *         chargerId=xxx, stationId=xxx, tokenVersion=N, scope=charger
      */
-    public String generateToken(String chargerUserId, String chargerId, String identityType, long expirationMs) {
+    public String generateToken(String chargerUserId, String permissionLevel,
+                                 String chargerId, String stationId,
+                                 int tokenVersion, long expirationMs) {
         Date now = new Date();
         Date expiry = new Date(now.getTime() + expirationMs);
 
@@ -44,7 +47,8 @@ public class ChargerTokenProvider {
                 .id(UUID.randomUUID().toString())
                 .subject(chargerUserId)
                 .claim("scope", "charger")
-                .claim("identityType", identityType)
+                .claim("permissionLevel", permissionLevel)
+                .claim("tokenVersion", tokenVersion)
                 .issuedAt(now)
                 .expiration(expiry)
                 .signWith(key);
@@ -52,13 +56,13 @@ public class ChargerTokenProvider {
         if (chargerId != null) {
             builder.claim("chargerId", chargerId);
         }
+        if (stationId != null) {
+            builder.claim("stationId", stationId);
+        }
 
         return builder.compact();
     }
 
-    /**
-     * Parse and validate token, return io.jsonwebtoken.Claims
-     */
     public io.jsonwebtoken.Claims validateToken(String token) {
         try {
             return Jwts.parser()
@@ -77,13 +81,23 @@ public class ChargerTokenProvider {
         return claims != null ? claims.getSubject() : null;
     }
 
+    public String getPermissionLevelFromToken(String token) {
+        var claims = validateToken(token);
+        return claims != null ? claims.get("permissionLevel", String.class) : null;
+    }
+
     public String getChargerIdFromToken(String token) {
         var claims = validateToken(token);
         return claims != null ? claims.get("chargerId", String.class) : null;
     }
 
-    public String getIdentityTypeFromToken(String token) {
+    public String getStationIdFromToken(String token) {
         var claims = validateToken(token);
-        return claims != null ? claims.get("identityType", String.class) : null;
+        return claims != null ? claims.get("stationId", String.class) : null;
+    }
+
+    public Integer getTokenVersionFromToken(String token) {
+        var claims = validateToken(token);
+        return claims != null ? claims.get("tokenVersion", Integer.class) : null;
     }
 }

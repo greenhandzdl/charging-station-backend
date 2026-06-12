@@ -13,6 +13,7 @@ public class ChargerLoginResponse {
     private String accessToken;
     private String tokenType = "Bearer";
     private long expiresIn;
+    private int tokenVersion;
     private ChargerUserInfo chargerUser;
 
     @Data
@@ -21,9 +22,11 @@ public class ChargerLoginResponse {
     @AllArgsConstructor
     public static class ChargerUserInfo {
         private String id;
-        private String chargerId;
         private String name;
-        private String phone;
-        private String identityType;
+        private String loginId;
+        private String permissionLevel;
+        private String chargerId;
+        private String stationId;
+        private String parentId;
     }
 }

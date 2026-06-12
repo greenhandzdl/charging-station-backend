@@ -14,13 +14,15 @@ import java.util.UUID;
 @AllArgsConstructor
 public class ChargerUser {
     private UUID id;
-    private UUID chargerId;         // NULL for GLOBAL identity
+    private String loginId;          // 登录账号
     private String name;
-    private String phone;
     private String passwordHash;
-    private String identityType;    // SINGLE or GLOBAL
+    private String permissionLevel;  // CHARGER, STATION, STATION_GLOBAL
+    private UUID chargerId;          // CHARGER 级别绑定的充电桩
+    private UUID stationId;          // STATION 级别管理的充电站
+    private UUID parentId;           // 上级身份 ID
+    private Integer tokenVersion;    // token 版本号
     private Boolean isActive;
-    private String allowedChargerIds; // GLOBAL accessible charger IDs (JSON array)
     private LocalDateTime lastLoginAt;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;

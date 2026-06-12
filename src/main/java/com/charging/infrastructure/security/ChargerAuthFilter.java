@@ -15,13 +15,20 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 充电桩 JWT 认证过滤器。
+ * 充电桩/站 JWT 认证过滤器。
  * 解析 X-Charger-Token 或 Authorization: Bearer <charger-jwt> 头中的充电桩 JWT，
- * 验证后设置安全上下文（scope=charger, role=CHARGER）。
- * 仅对 scope=charger 的令牌进行处理，普通用户 JWT 由 JwtAuthenticationFilter 处理。
+ * 验证 permissionLevel + tokenVersion，设置安全上下文（scope=charger）。
+ *
+ * <p>权限体系：CHARGER（单桩）< STATION（站级）< STATION_GLOBAL（全局）
+ * <ul>
+ *   <li>CHARGER — 只能操作绑定的单个充电桩（ROLE_CHARGER）</li>
+ *   <li>STATION — 可操作站下所有充电桩（ROLE_STATION）</li>
+ *   <li>STATION_GLOBAL — 可操作任意充电桩（ROLE_STATION_GLOBAL）</li>
+ * </ul>
  */
 @Slf4j
 @Component
@@ -39,6 +46,12 @@ public class ChargerAuthFilter extends OncePerRequestFilter {
                                     FilterChain filterChain)
             throws ServletException, IOException {
 
+        // 如果已经有认证（例如 JwtAuthenticationFilter 已处理），则跳过
+        if (SecurityContextHolder.getContext().getAuthentication() != null) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+
         String token = resolveToken(request);
 
         if (StringUtils.hasText(token)) {
@@ -47,25 +60,27 @@ public class ChargerAuthFilter extends OncePerRequestFilter {
                 String scope = claims.get("scope", String.class);
                 if ("charger".equals(scope)) {
                     String chargerUserId = claims.getSubject();
-                    String chargerId = claims.get("chargerId", String.class);
-                    String identityType = claims.get("identityType", String.class);
+                    String permissionLevel = claims.get("permissionLevel", String.class);
+                    Integer tokenVersion = claims.get("tokenVersion", Integer.class);
 
-                    var authorities = List.of(
-                            new SimpleGrantedAuthority("SCOPE_charger"),
-                            new SimpleGrantedAuthority("ROLE_CHARGER")
-                    );
+                    // Build authorities based on permission level
+                    List<SimpleGrantedAuthority> authorities = new ArrayList<>();
+                    authorities.add(new SimpleGrantedAuthority("SCOPE_charger"));
+                    if (permissionLevel != null) {
+                        authorities.add(new SimpleGrantedAuthority("ROLE_" + permissionLevel));
+                    }
 
                     JwtUserPrincipal principal = JwtUserPrincipal.builder()
                             .userId(chargerUserId)
-                            .role("CHARGER")
+                            .role(permissionLevel != null ? permissionLevel : "CHARGER")
                             .scope("charger")
                             .token(token)
                             .build();
 
                     var auth = new UsernamePasswordAuthenticationToken(principal, null, authorities);
                     SecurityContextHolder.getContext().setAuthentication(auth);
-                    log.debug("Charger JWT auth success: chargerUserId={}, chargerId={}, identityType={}",
-                            chargerUserId, chargerId, identityType);
+                    log.debug("Charger JWT auth success: chargerUserId={}, permissionLevel={}",
+                            chargerUserId, permissionLevel);
                 }
             } else {
                 log.debug("Invalid charger JWT token");
@@ -76,12 +91,10 @@ public class ChargerAuthFilter extends OncePerRequestFilter {
     }
 
     private String resolveToken(HttpServletRequest request) {
-        // First try custom header
         String chargerToken = request.getHeader(CHARGER_TOKEN_HEADER);
         if (StringUtils.hasText(chargerToken)) {
             return chargerToken.trim();
         }
-        // Then try standard Authorization header
         String bearerToken = request.getHeader("Authorization");
         if (StringUtils.hasText(bearerToken) && bearerToken.startsWith("Bearer ")) {
             return bearerToken.substring(7).trim();

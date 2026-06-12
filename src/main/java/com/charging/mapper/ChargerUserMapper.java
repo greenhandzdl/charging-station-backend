@@ -13,26 +13,38 @@ public interface ChargerUserMapper {
     @Select("SELECT * FROM charger_users WHERE id = #{id}")
     Optional<ChargerUser> findById(UUID id);
 
-    @Select("SELECT * FROM charger_users WHERE phone = #{phone}")
-    Optional<ChargerUser> findByPhone(String phone);
+    @Select("SELECT * FROM charger_users WHERE login_id = #{loginId}")
+    Optional<ChargerUser> findByLoginId(String loginId);
 
     @Select("SELECT * FROM charger_users WHERE charger_id = #{chargerId}")
     Optional<ChargerUser> findByChargerId(UUID chargerId);
 
+    @Select("SELECT * FROM charger_users WHERE station_id = #{stationId}")
+    List<ChargerUser> findByStationId(UUID stationId);
+
+    @Select("SELECT * FROM charger_users WHERE parent_id = #{parentId}")
+    List<ChargerUser> findByParentId(UUID parentId);
+
     @Select("SELECT * FROM charger_users")
     List<ChargerUser> findAll();
 
-    @Insert("INSERT INTO charger_users (id, charger_id, name, phone, password_hash, identity_type, is_active, allowed_charger_ids, created_at) " +
-            "VALUES (#{id}, #{chargerId}, #{name}, #{phone}, #{passwordHash}, #{identityType}, #{isActive}, #{allowedChargerIds}, now())")
+    @Insert("INSERT INTO charger_users (id, login_id, name, password_hash, permission_level, charger_id, station_id, parent_id, token_version, created_at) " +
+            "VALUES (#{id}, #{loginId}, #{name}, #{passwordHash}, #{permissionLevel}, #{chargerId}, #{stationId}, #{parentId}, COALESCE(#{tokenVersion},0), now())")
     int insert(ChargerUser chargerUser);
 
-    @Update("UPDATE charger_users SET name = #{name}, phone = #{phone}, password_hash = #{passwordHash}, " +
-            "identity_type = #{identityType}, is_active = #{isActive}, allowed_charger_ids = #{allowedChargerIds}, " +
-            "updated_at = now() WHERE id = #{id}")
+    @Update("UPDATE charger_users SET name = #{name}, login_id = #{loginId}, password_hash = #{passwordHash}, " +
+            "permission_level = #{permissionLevel}, charger_id = #{chargerId}, station_id = #{stationId}, " +
+            "parent_id = #{parentId}, updated_at = now() WHERE id = #{id}")
     int update(ChargerUser chargerUser);
 
     @Update("UPDATE charger_users SET last_login_at = now(), updated_at = now() WHERE id = #{id}")
     int updateLastLogin(UUID id);
+
+    @Update("UPDATE charger_users SET token_version = token_version + 1, updated_at = now() WHERE id = #{id}")
+    int incrementTokenVersion(UUID id);
+
+    @Select("SELECT token_version FROM charger_users WHERE id = #{id}")
+    Integer getTokenVersion(UUID id);
 
     @Delete("DELETE FROM charger_users WHERE id = #{id}")
     int deleteById(UUID id);
