@@ -23,7 +23,9 @@ import com.charging.service.ChargingService;
 import com.charging.service.PaymentService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
@@ -48,6 +50,9 @@ public class ChargingServiceImpl implements ChargingService {
     private final BillingService billingService;
     private final ChargerConnector chargerConnector;
 
+    @Autowired(required = false)
+    private RedisTemplate<String, Object> redisTemplate;
+
     @Value("${charging.min-balance:10.00}")
     private BigDecimal minBalance;
 
@@ -66,7 +71,10 @@ public class ChargingServiceImpl implements ChargingService {
      */
     private BigDecimal estimateEnergyKwh(ChargerType type, LocalDateTime startTime) {
         if (startTime == null) {
-            return BigDecimal.ZERO.setScale(1, RoundingMode.HALF_UP);
+            // startTime 为 null 时（早期流程缺陷或离线桩），按默认值估算
+            // 快充 60kW/h × 0.5h = 30kWh, 慢充 7kW/h × 0.5h = 3.5kWh
+            double defaultKwh = type == ChargerType.FAST ? 30.0 : 3.5;
+            return BigDecimal.valueOf(defaultKwh).setScale(1, RoundingMode.HALF_UP);
         }
         Duration duration = Duration.between(startTime, LocalDateTime.now());
         double hours = duration.getSeconds() / 3600.0;
@@ -632,6 +640,17 @@ public class ChargingServiceImpl implements ChargingService {
                         .resourceId(record.getId())
                         .payload("{\"reason\": \"" + sanitizeReason(reason) + "\"}")
                         .build());
+                // 设置 Redis 离线通知，Flutter 可通过 GET /charges/active 轮询感知
+                if (redisTemplate != null) {
+                    String notifyKey = "offline:notify:" + record.getUserId();
+                    redisTemplate.opsForValue().set(notifyKey, Map.of(
+                            "recordId", record.getId().toString(),
+                            "chargerCode", charger.getChargerCode(),
+                            "energyKwh", energyKwh,
+                            "fee", fee
+                    ));
+                    redisTemplate.expire(notifyKey, java.time.Duration.ofMinutes(5));
+                }
                 stopped++;
                 log.warn("Force-stopped charge {} on offline charger {} (reason: {})",
                         record.getId(), charger.getChargerCode(), reason);
@@ -665,6 +684,28 @@ public class ChargingServiceImpl implements ChargingService {
             m.put("chargerCode", r.get("charger_code"));
             m.put("stationName", r.get("station_name"));
             result.add(m);
+        }
+        return result;
+    }
+
+    @Override
+    public List<Map<String, Object>> getActiveChargesWithChargerInfo(UUID userId) {
+        // 查询用户所有 PROCESSING 状态的充电记录，关联充电桩信息
+        List<ChargeRecord> activeRecords = chargeRecordMapper.findByUserIdAndStatus(userId, "PROCESSING");
+        List<Map<String, Object>> result = new ArrayList<>();
+        for (ChargeRecord record : activeRecords) {
+            chargerMapper.findById(record.getChargerId()).ifPresent(charger -> {
+                result.add(Map.of(
+                        "recordId", record.getId().toString(),
+                        "chargerId", charger.getId().toString(),
+                        "chargerCode", charger.getChargerCode(),
+                        "type", charger.getType().name(),
+                        "ratedPowerKw", charger.getRatedPowerKw() != null ? charger.getRatedPowerKw().doubleValue() :
+                                (charger.getType() == com.charging.enums.ChargerType.FAST ? 60.0 : 7.0),
+                        "startTime", record.getStartTime() != null ? record.getStartTime().toString() : null,
+                        "status", record.getStatus().name()
+                ));
+            });
         }
         return result;
     }

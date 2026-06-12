@@ -15,4 +15,6 @@ public interface RepairService {
     void resolve(UUID repairId, UUID userId, String userRole);
     void close(UUID repairId, UUID adminId);
     void reject(UUID repairId, RejectRepairRequest request, UUID adminId);
+    void softDelete(UUID repairId, UUID userId, String userRole);
+    void approveDelete(UUID repairId, UUID adminId);
 }

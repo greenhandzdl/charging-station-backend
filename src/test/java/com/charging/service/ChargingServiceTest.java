@@ -358,7 +358,7 @@ class ChargingServiceTest {
     // ==================== estimateEnergyKwh Tests ====================
 
     @Test
-    void estimateEnergyKwh_nullStartTime_returnsZero() {
+    void estimateEnergyKwh_nullStartTime_returnsDefault() {
         try {
             java.lang.reflect.Method method = ChargingServiceImpl.class.getDeclaredMethod(
                     "estimateEnergyKwh", ChargerType.class, LocalDateTime.class);
@@ -367,7 +367,12 @@ class ChargingServiceTest {
             ChargerType type = ChargerType.FAST;
             BigDecimal result = (BigDecimal) method.invoke(chargingService, type, (LocalDateTime) null);
 
-            assertEquals(BigDecimal.ZERO.setScale(1, java.math.RoundingMode.HALF_UP), result);
+            // startTime 为 null 时按默认值 30kWh（快充×0.5h）估算，不再返回 0
+            assertEquals(BigDecimal.valueOf(30.0).setScale(1, java.math.RoundingMode.HALF_UP), result);
+
+            // 慢充也应返回默认值 3.5kWh
+            result = (BigDecimal) method.invoke(chargingService, ChargerType.SLOW, (LocalDateTime) null);
+            assertEquals(BigDecimal.valueOf(3.5).setScale(1, java.math.RoundingMode.HALF_UP), result);
         } catch (Exception e) {
             throw new RuntimeException("Reflection failed", e);
         }

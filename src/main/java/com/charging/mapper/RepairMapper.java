@@ -48,6 +48,12 @@ public interface RepairMapper {
     @Update("UPDATE repairs SET handled_at = now() WHERE id = #{id}")
     int markHandled(UUID id);
 
+    @Update("UPDATE repairs SET status = 'DELETED' WHERE id = #{id}")
+    int softDelete(UUID id);
+
+    @Delete("DELETE FROM repairs WHERE id = #{id}")
+    int hardDelete(UUID id);
+
     @Select("SELECT MAX(reported_at) FROM repairs WHERE charger_id = #{chargerId} AND status IN ('OPEN', 'IN_PROGRESS')")
     LocalDateTime findLatestFaultTime(@Param("chargerId") UUID chargerId);
 }

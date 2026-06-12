@@ -19,4 +19,5 @@ public interface ChargingService {
     Map<String, Object> unplug(UUID chargerId);
     Map<String, Object> selectCharger(UUID chargerId, UUID userId, String sessionId);
     int forceStopByChargerId(UUID chargerId, String reason);
+    List<Map<String, Object>> getActiveChargesWithChargerInfo(UUID userId);
 }

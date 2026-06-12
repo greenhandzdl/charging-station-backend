@@ -9,11 +9,14 @@ import com.charging.service.ChargingService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -26,6 +29,9 @@ public class ChargingController {
 
     private final ChargingService chargingService;
     private final ChargerMapper chargerMapper;
+
+    @Autowired(required = false)
+    private RedisTemplate<String, Object> redisTemplate;
 
     @PostMapping("/charges/start")
     @PreAuthorize("isAuthenticated()")
@@ -113,6 +119,36 @@ public class ChargingController {
         UUID userId = UUID.fromString(principal.getUserId());
         Map<String, Object> result = chargingService.selectCharger(id, userId, body.get("sessionId"));
         return ResponseEntity.ok(result);
+    }
+
+    /**
+     * 获取用户当前活跃的充电记录（PROCESSING 状态）+ 离线通知标记。
+     * Flutter 轮询此接口用于本地实时功率/费用模拟的恢复，以及离线停止充电的通知。
+     */
+    @GetMapping("/charges/active")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<Map<String, Object>> getActiveCharges(
+            @AuthenticationPrincipal JwtUserPrincipal principal) {
+        UUID userId = UUID.fromString(principal.getUserId());
+        List<Map<String, Object>> activeRecords = chargingService.getActiveChargesWithChargerInfo(userId);
+
+        // 检查是否有离线通知
+        boolean offlineStopped = false;
+        Map<String, Object> offlineInfo = null;
+        if (redisTemplate != null) {
+            String notifyKey = "offline:notify:" + userId;
+            offlineInfo = (Map<String, Object>) redisTemplate.opsForValue().get(notifyKey);
+            if (offlineInfo != null) {
+                offlineStopped = true;
+                redisTemplate.delete(notifyKey); // 消费后删除
+            }
+        }
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("activeRecords", activeRecords);
+        response.put("offlineStopped", offlineStopped);
+        response.put("offlineInfo", offlineInfo);
+        return ResponseEntity.ok(response);
     }
     
     private String getClientIp(jakarta.servlet.http.HttpServletRequest request) {

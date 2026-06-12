@@ -248,4 +248,50 @@ public class RepairServiceImpl implements RepairService {
                 .payload("{\"reason\": \"" + request.getReason() + "\"}")
                 .build());
     }
+
+    @Override
+    @Transactional
+    public void softDelete(UUID repairId, UUID userId, String userRole) {
+        Repair repair = repairMapper.findById(repairId)
+                .orElseThrow(() -> BusinessException.notFound("Repair", repairId.toString()));
+
+        // MAINTAINER can only soft-delete their own assigned repairs
+        if ("MAINTAINER".equals(userRole) && !userId.equals(repair.getHandledBy())) {
+            throw BusinessException.forbidden("维修人员只能删除自己被分配的报修");
+        }
+
+        repairMapper.softDelete(repairId);
+
+        auditLogMapper.insert(AuditLog.builder()
+                .id(UUID.randomUUID())
+                .actorId(userId)
+                .actorType(userRole.equals("MAINTAINER") ? "maintainer" : "admin")
+                .action("SOFT_DELETE_REPAIR")
+                .resource("repair")
+                .resourceId(repairId)
+                .payload("{\"previousStatus\": \"" + repair.getStatus() + "\"}")
+                .build());
+    }
+
+    @Override
+    @Transactional
+    public void approveDelete(UUID repairId, UUID adminId) {
+        Repair repair = repairMapper.findById(repairId)
+                .orElseThrow(() -> BusinessException.notFound("Repair", repairId.toString()));
+
+        if (repair.getStatus() != RepairStatus.DELETED) {
+            throw BusinessException.conflict("只有DELETED状态的报修单可审批删除");
+        }
+
+        repairMapper.hardDelete(repairId);
+
+        auditLogMapper.insert(AuditLog.builder()
+                .id(UUID.randomUUID())
+                .actorId(adminId)
+                .actorType("admin")
+                .action("APPROVE_DELETE_REPAIR")
+                .resource("repair")
+                .resourceId(repairId)
+                .build());
+    }
 }

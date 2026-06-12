@@ -87,4 +87,22 @@ public class RepairController {
         repairService.reject(id, request, adminId);
         return ResponseEntity.ok(Map.of("status", "in_progress"));
     }
+
+    @PutMapping("/repairs/{id}/delete")
+    @PreAuthorize("hasAnyRole('MAINTAINER', 'ADMIN', 'SUPER_ADMIN')")
+    public ResponseEntity<Map<String, String>> deleteRepair(@PathVariable UUID id,
+                                                            @AuthenticationPrincipal JwtUserPrincipal principal) {
+        UUID userId = UUID.fromString(principal.getUserId());
+        repairService.softDelete(id, userId, principal.getRole());
+        return ResponseEntity.ok(Map.of("message", "已申请删除"));
+    }
+
+    @PutMapping("/repairs/{id}/approve-delete")
+    @PreAuthorize("hasAnyRole('ADMIN', 'SUPER_ADMIN')")
+    public ResponseEntity<Map<String, String>> approveDeleteRepair(@PathVariable UUID id,
+                                                                    @AuthenticationPrincipal JwtUserPrincipal principal) {
+        UUID adminId = UUID.fromString(principal.getUserId());
+        repairService.approveDelete(id, adminId);
+        return ResponseEntity.ok(Map.of("message", "已永久删除"));
+    }
 }

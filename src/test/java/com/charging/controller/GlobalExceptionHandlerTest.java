@@ -131,7 +131,7 @@ class GlobalExceptionHandlerTest {
         assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
         Map<String, Object> error = (Map<String, Object>) response.getBody().get("error");
         assertEquals("VALIDATION_ERROR", error.get("code"));
-        assertEquals("请求参数校验失败", error.get("message"));
+        assertEquals("充值金额不能为空", error.get("message"));
         assertNotNull(error.get("details"));
     }
 

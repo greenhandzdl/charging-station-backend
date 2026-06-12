@@ -37,10 +37,16 @@ public class GlobalExceptionHandler {
         for (FieldError fe : e.getBindingResult().getFieldErrors()) {
             fieldErrors.put(fe.getField(), fe.getDefaultMessage());
         }
+        // 取第一个字段错误作为友好提示
+        String firstError = e.getBindingResult().getFieldErrors().stream()
+                .map(FieldError::getDefaultMessage)
+                .filter(msg -> msg != null)
+                .findFirst()
+                .orElse("请求参数校验失败");
         Map<String, Object> body = new HashMap<>();
         body.put("error", Map.of(
                 "code", "VALIDATION_ERROR",
-                "message", "请求参数校验失败",
+                "message", firstError,
                 "details", fieldErrors
         ));
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(body);

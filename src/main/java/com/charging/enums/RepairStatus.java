@@ -4,5 +4,6 @@ public enum RepairStatus {
     OPEN,
     IN_PROGRESS,
     RESOLVED,
-    CLOSED
+    CLOSED,
+    DELETED
 }
