@@ -25,6 +25,7 @@ public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final AdvancedApiKeyFilter advancedApiKeyFilter;
+    private final DeviceAuthFilter deviceAuthFilter;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -48,6 +49,7 @@ public class SecurityConfig {
                         // All other requests require authentication
                         .anyRequest().authenticated()
                 )
+                .addFilterBefore(deviceAuthFilter, UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(advancedApiKeyFilter, UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
@@ -65,8 +67,7 @@ public class SecurityConfig {
         roleHierarchy.setHierarchy(
                 "ROLE_SUPER_ADMIN > ROLE_ADMIN\n" +
                 "ROLE_ADMIN > ROLE_MAINTAINER\n" +
-                "ROLE_MAINTAINER > ROLE_USER\n" +
-                "ROLE_USER > ROLE_CHARGER"
+                "ROLE_MAINTAINER > ROLE_USER"
         );
         return roleHierarchy;
     }

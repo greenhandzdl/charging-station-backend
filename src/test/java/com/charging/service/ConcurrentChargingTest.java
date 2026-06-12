@@ -74,6 +74,7 @@ class ConcurrentChargingTest {
                 .type(ChargerType.FAST)
                 .status(ChargerStatus.IDLE)
                 .onlineStatus("ONLINE")
+                .occupiedBy(userId1)
                 .stationId(UUID.randomUUID())
                 .build();
     }
@@ -116,6 +117,7 @@ class ConcurrentChargingTest {
                 .type(ChargerType.FAST)
                 .status(ChargerStatus.CHARGING)  // already occupied
                 .onlineStatus("ONLINE")
+                .occupiedBy(userId1)
                 .stationId(UUID.randomUUID())
                 .build();
         when(userMapper.findById(userId2)).thenReturn(Optional.of(user2));

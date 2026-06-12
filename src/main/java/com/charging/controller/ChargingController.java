@@ -89,11 +89,30 @@ public class ChargingController {
         return ResponseEntity.ok(Map.of("status", "OK", "chargerCode", chargerCode));
     }
 
-    @PostMapping("/charges/{recordId}/plug-in")
-    @PreAuthorize("hasAnyAuthority('SCOPE_advanced') or hasRole('CHARGER')")
-    public ResponseEntity<Map<String, String>> plugIn(@PathVariable UUID recordId) {
-        chargingService.plugIn(recordId);
-        return ResponseEntity.ok(Map.of("message", "插枪成功"));
+    @PostMapping("/chargers/{id}/plug-in")
+    @PreAuthorize("hasAuthority('SCOPE_device')")
+    public ResponseEntity<Map<String, Object>> plugIn(@PathVariable UUID id,
+                                                      @AuthenticationPrincipal JwtUserPrincipal principal) {
+        UUID deviceUserId = UUID.fromString(principal.getUserId());
+        Map<String, Object> result = chargingService.plugIn(id, deviceUserId);
+        return ResponseEntity.ok(result);
+    }
+
+    @PostMapping("/chargers/{id}/unplug")
+    @PreAuthorize("hasAuthority('SCOPE_device')")
+    public ResponseEntity<Map<String, Object>> unplug(@PathVariable UUID id) {
+        Map<String, Object> result = chargingService.unplug(id);
+        return ResponseEntity.ok(result);
+    }
+
+    @PostMapping("/chargers/{id}/select")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<Map<String, Object>> selectCharger(@PathVariable UUID id,
+                                                             @RequestBody Map<String, String> body,
+                                                             @AuthenticationPrincipal JwtUserPrincipal principal) {
+        UUID userId = UUID.fromString(principal.getUserId());
+        Map<String, Object> result = chargingService.selectCharger(id, userId, body.get("sessionId"));
+        return ResponseEntity.ok(result);
     }
     
     private String getClientIp(jakarta.servlet.http.HttpServletRequest request) {

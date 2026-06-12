@@ -33,6 +33,7 @@ import java.math.RoundingMode;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Slf4j
 @Service
@@ -55,6 +56,9 @@ public class ChargingServiceImpl implements ChargingService {
 
     @Value("${charging.slow-rate-kwh-per-hour:7}")
     private double slowRateKwhPerHour;
+
+    // 临时存储充电桩的 sessionId（QR 会话绑定），key: chargerId, value: sessionId
+    private final Map<String, String> chargerSessions = new ConcurrentHashMap<>();
 
     /**
      * 根据充电桩类型和充电时长计算估算用电量（kWh）。
@@ -116,6 +120,11 @@ public class ChargingServiceImpl implements ChargingService {
             throw BusinessException.chargerOffline();
         }
 
+        // Check charger is occupied (plugged in)
+        if (charger.getOccupiedBy() == null) {
+            throw BusinessException.conflict("充电桩未插枪，请先插枪");
+        }
+
         // Lock charger (optimistic write)
         int updated = chargerMapper.updateStatusConditionally(chargerId, "CHARGING", "IDLE");
         if (updated == 0) {
@@ -156,38 +165,48 @@ public class ChargingServiceImpl implements ChargingService {
 
     @Override
     @Transactional
-    public void plugIn(UUID recordId) {
-        // Find the charge record
-        ChargeRecord record = chargeRecordMapper.findById(recordId)
-                .orElseThrow(() -> BusinessException.notFound("ChargeRecord", recordId.toString()));
+    public Map<String, Object> plugIn(UUID chargerId, UUID deviceUserId) {
+        // 验证充电桩存在
+        Charger charger = chargerMapper.findById(chargerId)
+                .orElseThrow(() -> BusinessException.notFound("Charger", chargerId.toString()));
 
-        // Validate it exists and has status PROCESSING
-        if (record.getStatus() != RecordStatus.PROCESSING) {
-            throw BusinessException.conflict("记录状态不允许插枪");
+        // 验证桩在线
+        if (!"ONLINE".equals(charger.getOnlineStatus())) {
+            throw BusinessException.chargerOffline();
         }
 
-        // Validate startTime IS NULL (not already plugged in)
-        if (record.getStartTime() != null) {
-            throw BusinessException.conflict("已插枪，不可重复操作");
+        // 检查桩未被占用
+        if (charger.getOccupiedBy() != null) {
+            throw BusinessException.conflict("充电桩已被其他用户占用");
         }
 
-        // Set start time
-        int updated = chargeRecordMapper.setStartTime(recordId);
+        // 设置占用锁
+        int updated = chargerMapper.occupy(chargerId, deviceUserId);
         if (updated == 0) {
-            throw BusinessException.conflict("插枪失败，记录状态异常");
+            throw BusinessException.conflict("充电桩占用失败，请重试");
         }
 
-        // Audit log
+        // 生成 sessionId（QR 绑定用）
+        String sessionId = UUID.randomUUID().toString();
+        chargerSessions.put(chargerId.toString(), sessionId);
+
+        // 审计日志
         auditLogMapper.insert(AuditLog.builder()
                 .id(UUID.randomUUID())
-                .actorId(record.getUserId())
-                .actorType("user")
+                .actorId(deviceUserId)
+                .actorType("device")
                 .action("PLUG_IN")
-                .resource("charge_record")
-                .resourceId(recordId)
+                .resource("charger")
+                .resourceId(chargerId)
                 .build());
 
-        log.info("Plugged in charge record: {}", recordId);
+        log.info("Charger {} plugged in, sessionId={}", chargerId, sessionId);
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("chargerId", chargerId.toString());
+        result.put("sessionId", sessionId);
+        result.put("message", "插枪成功");
+        return result;
     }
 
     /**
@@ -236,6 +255,114 @@ public class ChargingServiceImpl implements ChargingService {
             }
         }
         return stopped;
+    }
+
+    @Override
+    @Transactional
+    public Map<String, Object> unplug(UUID chargerId) {
+        Charger charger = chargerMapper.findById(chargerId)
+                .orElseThrow(() -> BusinessException.notFound("Charger", chargerId.toString()));
+
+        if (charger.getOccupiedBy() == null) {
+            throw BusinessException.conflict("充电桩未被占用");
+        }
+
+        // 查找该桩上进行中的充电记录，自动结束
+        List<ChargeRecord> processingRecords = chargeRecordMapper.findProcessingByChargerId(chargerId);
+        for (ChargeRecord record : processingRecords) {
+            try {
+                BigDecimal energyKwh = estimateEnergyKwh(charger.getType(), record.getStartTime());
+                BigDecimal fee = billingService.calculateFee(charger.getType(), energyKwh);
+
+                User user = userMapper.findByIdWithLock(record.getUserId())
+                        .orElse(null);
+                boolean paid = false;
+                if (user != null && user.getBalance().compareTo(fee) >= 0) {
+                    int deductResult = userMapper.deductBalance(record.getUserId(), fee);
+                    if (deductResult > 0) {
+                        chargeRecordMapper.completeRecord(record.getId(), energyKwh, fee, "PAID");
+                        paymentService.autoDeduct(record.getUserId(), fee, record.getId());
+                        paid = true;
+                    }
+                }
+                if (!paid) {
+                    chargeRecordMapper.completeRecord(record.getId(), energyKwh, fee, "ARREARS");
+                    if (user != null) {
+                        userMapper.freezeAccount(record.getUserId());
+                    }
+                }
+
+                chargerMapper.updateStatusConditionally(chargerId, "IDLE", "CHARGING");
+                chargerConnector.notifyStop(charger.getChargerCode(), record.getId());
+
+                auditLogMapper.insert(AuditLog.builder()
+                        .id(UUID.randomUUID())
+                        .actorId(record.getUserId())
+                        .actorType("system")
+                        .action("STOP_CHARGE")
+                        .resource("charge_record")
+                        .resourceId(record.getId())
+                        .payload("{\"reason\": \"unplug\"}")
+                        .build());
+
+                log.info("Charge {} auto-stopped due to unplug", record.getId());
+            } catch (Exception e) {
+                log.error("Error auto-stopping charge {} on unplug", record.getId(), e);
+            }
+        }
+
+        // 释放占用锁
+        chargerMapper.releaseForce(chargerId);
+        chargerSessions.remove(chargerId.toString());
+
+        auditLogMapper.insert(AuditLog.builder()
+                .id(UUID.randomUUID())
+                .actorType("device")
+                .action("UNPLUG")
+                .resource("charger")
+                .resourceId(chargerId)
+                .build());
+
+        log.info("Charger {} unplugged", chargerId);
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("chargerId", chargerId.toString());
+        result.put("stoppedRecords", processingRecords.size());
+        result.put("message", "拔枪成功");
+        return result;
+    }
+
+    @Override
+    @Transactional
+    public Map<String, Object> selectCharger(UUID chargerId, UUID userId, String sessionId) {
+        Charger charger = chargerMapper.findById(chargerId)
+                .orElseThrow(() -> BusinessException.notFound("Charger", chargerId.toString()));
+
+        if (!"ONLINE".equals(charger.getOnlineStatus())) {
+            throw BusinessException.chargerOffline();
+        }
+
+        if (charger.getOccupiedBy() == null) {
+            throw BusinessException.conflict("充电桩未插枪，请先插枪");
+        }
+
+        String storedSession = chargerSessions.get(chargerId.toString());
+        if (storedSession == null || !storedSession.equals(sessionId)) {
+            throw BusinessException.conflict("会话已过期或无效，请重新扫码");
+        }
+
+        log.info("User {} selected charger {} (sessionId={})", userId, chargerId, sessionId);
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("chargerId", chargerId.toString());
+        result.put("chargerCode", charger.getChargerCode());
+        result.put("stationId", charger.getStationId());
+        result.put("type", charger.getType());
+        result.put("deviceType", charger.getDeviceType());
+        result.put("ratedPowerKw", charger.getRatedPowerKw());
+        result.put("sessionId", sessionId);
+        result.put("message", "选择充电桩成功");
+        return result;
     }
 
     @Override

@@ -35,12 +35,13 @@ public interface ChargerMapper {
     @Select("SELECT status FROM chargers WHERE id = #{id}")
     String findStatusById(UUID id);
 
-    @Insert("INSERT INTO chargers (id, station_id, charger_code, type, status, created_at) " +
-            "VALUES (#{id}, #{stationId}, #{chargerCode}, #{type}, #{status}, now())")
+    @Insert("INSERT INTO chargers (id, station_id, charger_code, type, status, device_type, rated_power_kw, manufacturer, model, created_at) " +
+            "VALUES (#{id}, #{stationId}, #{chargerCode}, #{type}, #{status}, #{deviceType}, #{ratedPowerKw}, #{manufacturer}, #{model}, now())")
     int insert(Charger charger);
 
     @Update("UPDATE chargers SET station_id = #{stationId}, charger_code = #{chargerCode}, " +
-            "type = #{type}, status = #{status}, updated_at = now() WHERE id = #{id}")
+            "type = #{type}, status = #{status}, device_type = #{deviceType}, rated_power_kw = #{ratedPowerKw}, " +
+            "manufacturer = #{manufacturer}, model = #{model}, updated_at = now() WHERE id = #{id}")
     int update(Charger charger);
 
     @Delete("DELETE FROM chargers WHERE id = #{id}")
@@ -60,4 +61,16 @@ public interface ChargerMapper {
             "WHERE c.charger_code ILIKE '%' || #{keyword} || '%' OR s.name ILIKE '%' || #{keyword} || '%' " +
             "LIMIT #{limit}")
     List<ChargerSuggestDTO> suggestChargers(@Param("keyword") String keyword, @Param("limit") int limit);
+
+    @Update("UPDATE chargers SET occupied_by = #{userId}, occupied_at = now(), updated_at = now() " +
+            "WHERE id = #{chargerId} AND occupied_by IS NULL")
+    int occupy(@Param("chargerId") UUID chargerId, @Param("userId") UUID userId);
+
+    @Update("UPDATE chargers SET occupied_by = NULL, occupied_at = NULL, updated_at = now() " +
+            "WHERE id = #{id} AND occupied_by = #{userId}")
+    int release(@Param("id") UUID id, @Param("userId") UUID userId);
+
+    @Update("UPDATE chargers SET occupied_by = NULL, occupied_at = NULL, updated_at = now() " +
+            "WHERE id = #{id}")
+    int releaseForce(UUID id);
 }

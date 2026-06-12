@@ -145,6 +145,10 @@ public class StationController {
                 .status(request.getStatus() != null
                         ? com.charging.enums.ChargerStatus.valueOf(request.getStatus().toUpperCase())
                         : com.charging.enums.ChargerStatus.IDLE)
+                .deviceType(request.getDeviceType() != null ? request.getDeviceType() : "SIMULATED")
+                .ratedPowerKw(request.getRatedPowerKw())
+                .manufacturer(request.getManufacturer())
+                .model(request.getModel())
                 .createdAt(LocalDateTime.now())
                 .build();
         chargerMapper.insert(charger);
@@ -171,6 +175,10 @@ public class StationController {
         if (request.getStatus() != null) {
             charger.setStatus(com.charging.enums.ChargerStatus.valueOf(request.getStatus().toUpperCase()));
         }
+        charger.setDeviceType(request.getDeviceType() != null ? request.getDeviceType() : charger.getDeviceType());
+        charger.setRatedPowerKw(request.getRatedPowerKw());
+        charger.setManufacturer(request.getManufacturer());
+        charger.setModel(request.getModel());
         charger.setUpdatedAt(LocalDateTime.now());
         chargerMapper.update(charger);
         return ResponseEntity.ok(charger);

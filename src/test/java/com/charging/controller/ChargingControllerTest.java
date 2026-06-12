@@ -240,39 +240,42 @@ class ChargingControllerTest {
         verify(chargingService).queryCharges(userId, "ADMIN", params);
     }
 
-    // ==================== plugIn Tests ====================
+    // ==================== plugIn / unplug / select Tests ====================
 
     @Test
-    void plugIn_withValidRecordId_shouldReturn200() {
-        doNothing().when(chargingService).plugIn(recordId);
+    void plugIn_withValidChargerId_shouldReturn200() {
+        Map<String, Object> result = Map.of("chargerId", chargerId.toString(), "sessionId", "mock-session", "message", "插枪成功");
+        when(chargingService.plugIn(chargerId, userId)).thenReturn(result);
 
-        ResponseEntity<Map<String, String>> response = chargingController.plugIn(recordId);
+        ResponseEntity<Map<String, Object>> response = chargingController.plugIn(chargerId, userPrincipal);
 
         assertEquals(200, response.getStatusCodeValue());
         assertEquals("插枪成功", response.getBody().get("message"));
-        verify(chargingService).plugIn(recordId);
+        verify(chargingService).plugIn(chargerId, userId);
     }
 
     @Test
-    void plugIn_withNonExistentRecord_shouldThrowBusinessException() {
-        doThrow(BusinessException.notFound("ChargeRecord", recordId.toString()))
-                .when(chargingService).plugIn(recordId);
+    void unplug_withValidChargerId_shouldReturn200() {
+        Map<String, Object> result = Map.of("chargerId", chargerId.toString(), "stoppedRecords", 0, "message", "拔枪成功");
+        when(chargingService.unplug(chargerId)).thenReturn(result);
 
-        BusinessException ex = assertThrows(BusinessException.class,
-                () -> chargingController.plugIn(recordId));
-        assertEquals("NOT_FOUND", ex.getCode());
-        verify(chargingService).plugIn(recordId);
+        ResponseEntity<Map<String, Object>> response = chargingController.unplug(chargerId);
+
+        assertEquals(200, response.getStatusCodeValue());
+        assertEquals("拔枪成功", response.getBody().get("message"));
+        verify(chargingService).unplug(chargerId);
     }
 
     @Test
-    void plugIn_whenAlreadyPluggedIn_shouldThrowBusinessException() {
-        doThrow(BusinessException.badRequest("已插枪"))
-                .when(chargingService).plugIn(recordId);
+    void selectCharger_withValidSession_shouldReturn200() {
+        Map<String, Object> result = Map.of("chargerId", chargerId.toString(), "message", "选择充电桩成功");
+        when(chargingService.selectCharger(chargerId, userId, "test-session")).thenReturn(result);
 
-        BusinessException ex = assertThrows(BusinessException.class,
-                () -> chargingController.plugIn(recordId));
-        assertEquals("BAD_REQUEST", ex.getCode());
-        verify(chargingService).plugIn(recordId);
+        ResponseEntity<Map<String, Object>> response = chargingController.selectCharger(chargerId, Map.of("sessionId", "test-session"), userPrincipal);
+
+        assertEquals(200, response.getStatusCodeValue());
+        assertEquals("选择充电桩成功", response.getBody().get("message"));
+        verify(chargingService).selectCharger(chargerId, userId, "test-session");
     }
 
     // ==================== receiveHeartbeat Tests ====================
