@@ -15,6 +15,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -119,11 +120,18 @@ public class UserController {
 
     @PutMapping("/users/profile")
     @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<User> updateProfile(@Valid @RequestBody UpdateUserRequest request,
-                                              @AuthenticationPrincipal JwtUserPrincipal principal) {
+    public ResponseEntity<Map<String, Object>> updateProfile(@Valid @RequestBody UpdateUserRequest request,
+                                                              @AuthenticationPrincipal JwtUserPrincipal principal) {
         UUID userId = UUID.fromString(principal.getUserId());
         User updated = userService.updateProfile(userId, request);
-        return ResponseEntity.ok(updated);
+        Map<String, Object> result = new HashMap<>();
+        result.put("id", updated.getId().toString());
+        result.put("name", updated.getName());
+        result.put("phone", updated.getPhone());
+        result.put("plateNumber", updated.getPlateNumber());
+        result.put("role", updated.getRole().name());
+        result.put("balance", updated.getBalance());
+        return ResponseEntity.ok(result);
     }
 
     @PutMapping("/users/{id}/role")

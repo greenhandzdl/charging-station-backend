@@ -53,7 +53,9 @@ public class ChargingScheduler {
         for (Charger charger : allChargers) {
             if (charger.getLastHeartbeatAt() == null || charger.getLastHeartbeatAt().isBefore(cutoff)) {
                 // Charger is offline - mark it if currently ONLINE
-                if ("ONLINE".equals(charger.getOnlineStatus()) || charger.getOnlineStatus() == null) {
+                // 即使已 OFFLINE，若状态仍是 CHARGING 也需要进行 forceStop
+                if ("ONLINE".equals(charger.getOnlineStatus()) || charger.getOnlineStatus() == null
+                        || "CHARGING".equals(charger.getStatus())) {
                     chargerMapper.markOffline(charger.getId());
                     markedOffline++;
                     log.warn("Charger {} (id={}) marked OFFLINE - last heartbeat: {}",

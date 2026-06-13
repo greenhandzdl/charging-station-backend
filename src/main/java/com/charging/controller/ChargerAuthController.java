@@ -8,9 +8,12 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -48,5 +51,36 @@ public class ChargerAuthController {
                 "newToken", response.getAccessToken(),
                 "chargerUser", response.getChargerUser()
         ));
+    }
+
+    /**
+     * 按 stationId 获取 charger_users 列表（排除 STATION_GLOBAL）。
+     * Flutter 管理后台用于显示设备类型 + 重置 token。
+     */
+    @GetMapping("/charger-users")
+    @PreAuthorize("hasAnyRole('ADMIN', 'SUPER_ADMIN')")
+    public ResponseEntity<List<Map<String, Object>>> listChargerUsers(
+            @RequestParam(required = false) UUID stationId) {
+        List<com.charging.entity.ChargerUser> users;
+        if (stationId != null) {
+            users = chargerUserService.findByStationId(stationId);
+        } else {
+            users = chargerUserService.findAll();
+        }
+        List<Map<String, Object>> result = users.stream()
+                .filter(u -> !"STATION_GLOBAL".equals(u.getPermissionLevel()))
+                .map(u -> {
+                    Map<String, Object> m = new HashMap<>();
+                    m.put("id", u.getId().toString());
+                    m.put("loginId", u.getLoginId());
+                    m.put("name", u.getName());
+                    m.put("permissionLevel", u.getPermissionLevel());
+                    m.put("chargerId", u.getChargerId() != null ? u.getChargerId().toString() : null);
+                    m.put("stationId", u.getStationId() != null ? u.getStationId().toString() : null);
+                    m.put("tokenVersion", u.getTokenVersion());
+                    return m;
+                })
+                .toList();
+        return ResponseEntity.ok(result);
     }
 }

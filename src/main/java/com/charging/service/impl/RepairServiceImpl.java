@@ -200,17 +200,27 @@ public class RepairServiceImpl implements RepairService {
         Repair repair = repairMapper.findById(repairId)
                 .orElseThrow(() -> BusinessException.notFound("Repair", repairId.toString()));
 
-        if (repair.getStatus() != RepairStatus.OPEN && repair.getStatus() != RepairStatus.RESOLVED) {
-            throw BusinessException.conflict("只有OPEN或RESOLVED状态的报修单可关闭");
+        if (repair.getStatus() != RepairStatus.OPEN
+                && repair.getStatus() != RepairStatus.IN_PROGRESS
+                && repair.getStatus() != RepairStatus.RESOLVED) {
+            throw BusinessException.conflict("只有OPEN、IN_PROGRESS或RESOLVED状态的报修单可关闭");
         }
 
-        boolean wasOpen = repair.getStatus() == RepairStatus.OPEN;
+        boolean isOpen = repair.getStatus() == RepairStatus.OPEN;
+        boolean isInProgress = repair.getStatus() == RepairStatus.IN_PROGRESS;
         repairMapper.close(repairId);
 
-        String action = wasOpen ? "CLOSE_REPAIR_DIRECT" : "CLOSE_REPAIR";
+        String action;
+        if (isOpen) {
+            action = "CLOSE_REPAIR_DIRECT";
+        } else if (isInProgress) {
+            action = "REJECT_REPAIR_IN_PROGRESS";
+        } else {
+            action = "CLOSE_REPAIR";
+        }
 
-        if (!wasOpen) {
-            // Restore charger to idle
+        // Restore charger for non-OPEN (i.e. work was already started on it)
+        if (!isOpen) {
             chargerService.restoreCharger(repair.getChargerId());
         }
 

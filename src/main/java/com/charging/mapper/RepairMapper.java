@@ -39,7 +39,7 @@ public interface RepairMapper {
     @Update("UPDATE repairs SET status = 'RESOLVED' WHERE id = #{id} AND status = 'IN_PROGRESS'")
     int resolve(UUID id);
 
-    @Update("UPDATE repairs SET status = 'CLOSED', handled_at = now() WHERE id = #{id} AND status IN ('OPEN', 'RESOLVED')")
+    @Update("UPDATE repairs SET status = 'CLOSED', handled_at = now() WHERE id = #{id} AND status IN ('OPEN', 'IN_PROGRESS', 'RESOLVED')")
     int close(UUID id);
 
     @Update("UPDATE repairs SET status = 'IN_PROGRESS', reject_reason = #{reason} WHERE id = #{id} AND status = 'RESOLVED'")

@@ -627,7 +627,11 @@ public class ChargingServiceImpl implements ChargingService {
                 // 结束充电记录，标记为欠费（离线场景下无法正常扣费）
                 chargeRecordMapper.completeRecord(record.getId(), energyKwh, fee, "ARREARS");
                 userMapper.freezeAccount(record.getUserId());
-                chargerMapper.updateStatusConditionally(charger.getId(), "IDLE", "CHARGING");
+                int statusUpdated = chargerMapper.updateStatusConditionally(charger.getId(), "IDLE", "CHARGING");
+                if (statusUpdated == 0) {
+                    log.warn("forceStopByChargerId: charger {} status was not CHARGING (already IDLE/FAULT), updating unconditionally", charger.getId());
+                    chargerMapper.updateStatus(charger.getId(), ChargerStatus.IDLE);
+                }
                 chargerConnector.notifyStop(charger.getChargerCode(), record.getId());
 
                 // 记录审计日志

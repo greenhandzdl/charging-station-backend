@@ -203,4 +203,14 @@ public class ChargerUserServiceImpl implements ChargerUserService {
         }
         return false;
     }
+
+    @Override
+    public List<ChargerUser> findByStationId(UUID stationId) {
+        return chargerUserMapper.findByStationId(stationId);
+    }
+
+    @Override
+    public List<ChargerUser> findAll() {
+        return chargerUserMapper.findAll();
+    }
 }

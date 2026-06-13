@@ -4,6 +4,7 @@ import com.charging.entity.ChargerUser;
 import com.charging.infrastructure.dto.ChargerLoginRequest;
 import com.charging.infrastructure.dto.ChargerLoginResponse;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -16,4 +17,6 @@ public interface ChargerUserService {
     String getPermissionLevel(UUID chargerUserId);
     void updateLastLogin(UUID id);
     ChargerUser create(ChargerUser chargerUser);
+    List<ChargerUser> findByStationId(UUID stationId);
+    List<ChargerUser> findAll();
 }
