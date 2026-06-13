@@ -73,9 +73,9 @@ public interface UserMapper {
 
     @Update("<script>" +
             "UPDATE users SET " +
-            "name = #{user.name}, " +
-            "plate_number = #{user.plateNumber}, " +
-            "<if test='user.role != null'>role = #{user.role}, </if>" +
+            "name = #{user.name, jdbcType=VARCHAR}, " +
+            "plate_number = #{user.plateNumber, jdbcType=VARCHAR}, " +
+            "<if test='user.role != null'>role = #{user.role, jdbcType=VARCHAR}, </if>" +
             "updated_at = now() " +
             "WHERE id = #{user.id}" +
             "</script>")

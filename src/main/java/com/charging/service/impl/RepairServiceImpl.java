@@ -35,6 +35,16 @@ public class RepairServiceImpl implements RepairService {
     private final AuditLogMapper auditLogMapper;
     private final ChargerService chargerService;
     private final UserMapper userMapper;
+    private final com.fasterxml.jackson.databind.ObjectMapper objectMapper;
+
+    private String toJson(Object obj) {
+        try {
+            return objectMapper.writeValueAsString(obj);
+        } catch (Exception e) {
+            log.error("Failed to convert to JSON", e);
+            return "{}";
+        }
+    }
 
     @Override
     @Transactional
@@ -51,7 +61,7 @@ public class RepairServiceImpl implements RepairService {
 
         repairMapper.insert(repair);
 
-        // Update charger status to fault (only if currently idle or fault)
+        // Update charger status to fault(Only if currently idea or fault)
         chargerMapper.updateStatusConditionally(request.getChargerId(), "FAULT", "IDLE");
 
         // Audit log
@@ -255,7 +265,7 @@ public class RepairServiceImpl implements RepairService {
                 .action("REJECT_REPAIR")
                 .resource("repair")
                 .resourceId(repairId)
-                .payload("{\"reason\": \"" + request.getReason() + "\"}")
+                .payload(toJson(Map.of("reason", request.getReason())))
                 .build());
     }
 
@@ -266,20 +276,27 @@ public class RepairServiceImpl implements RepairService {
                 .orElseThrow(() -> BusinessException.notFound("Repair", repairId.toString()));
 
         // MAINTAINER can only soft-delete their own assigned repairs
-        if ("MAINTAINER".equals(userRole) && !userId.equals(repair.getHandledBy())) {
+        if ("MAINTAINER".equalsIgnoreCase(userRole) && !userId.equals(repair.getHandledBy())) {
             throw BusinessException.forbidden("维修人员只能删除自己被分配的报修");
         }
 
         repairMapper.softDelete(repairId);
 
+        String actorType = "admin";
+        if ("MAINTAINER".equalsIgnoreCase(userRole)) {
+            actorType = "maintainer";
+        } else if ("USER".equalsIgnoreCase(userRole)) {
+            actorType = "user";
+        }
+
         auditLogMapper.insert(AuditLog.builder()
                 .id(UUID.randomUUID())
                 .actorId(userId)
-                .actorType(userRole.equals("MAINTAINER") ? "maintainer" : "admin")
+                .actorType(actorType)
                 .action("SOFT_DELETE_REPAIR")
                 .resource("repair")
                 .resourceId(repairId)
-                .payload("{\"previousStatus\": \"" + repair.getStatus() + "\"}")
+                .payload(toJson(Map.of("previousStatus", (repair.getStatus() != null ? repair.getStatus().name() : "null"))))
                 .build());
     }
 

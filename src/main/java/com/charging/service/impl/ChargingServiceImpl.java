@@ -49,6 +49,16 @@ public class ChargingServiceImpl implements ChargingService {
     private final PaymentService paymentService;
     private final BillingService billingService;
     private final ChargerConnector chargerConnector;
+    private final com.fasterxml.jackson.databind.ObjectMapper objectMapper;
+
+    private String toJson(Object obj) {
+        try {
+            return objectMapper.writeValueAsString(obj);
+        } catch (Exception e) {
+            log.error("Failed to convert to JSON", e);
+            return "{}";
+        }
+    }
 
     @Autowired(required = false)
     private RedisTemplate<String, Object> redisTemplate;
@@ -267,16 +277,16 @@ public class ChargingServiceImpl implements ChargingService {
 
     @Override
     @Transactional
-    public Map<String, Object> unplug(UUID chargerId) {
+    public Map<String, Object> unplug(UUID chargerId, UUID deviceUserId) {
         Charger charger = chargerMapper.findById(chargerId)
                 .orElseThrow(() -> BusinessException.notFound("Charger", chargerId.toString()));
 
-        if (charger.getOccupiedBy() == null) {
-            throw BusinessException.conflict("充电桩未被占用");
-        }
+        // 无论是否有人占用，都要清理会话
+        chargerSessions.remove(chargerId.toString());
 
         // 查找该桩上进行中的充电记录，自动结束
         List<ChargeRecord> processingRecords = chargeRecordMapper.findProcessingByChargerId(chargerId);
+        int stopped = 0;
         for (ChargeRecord record : processingRecords) {
             try {
                 BigDecimal energyKwh = estimateEnergyKwh(charger.getType(), record.getStartTime());
@@ -300,7 +310,7 @@ public class ChargingServiceImpl implements ChargingService {
                     }
                 }
 
-                chargerMapper.updateStatusConditionally(chargerId, "IDLE", "CHARGING");
+                // Notify charger via connector
                 chargerConnector.notifyStop(charger.getChargerCode(), record.getId());
 
                 auditLogMapper.insert(AuditLog.builder()
@@ -310,32 +320,34 @@ public class ChargingServiceImpl implements ChargingService {
                         .action("STOP_CHARGE")
                         .resource("charge_record")
                         .resourceId(record.getId())
-                        .payload("{\"reason\": \"unplug\"}")
+                        .payload(toJson(Map.of("reason", "unplug")))
                         .build());
 
                 log.info("Charge {} auto-stopped due to unplug", record.getId());
+                stopped++;
             } catch (Exception e) {
                 log.error("Error auto-stopping charge {} on unplug", record.getId(), e);
             }
         }
 
-        // 释放占用锁
+        // 释放占用锁并强制设为空闲
         chargerMapper.releaseForce(chargerId);
-        chargerSessions.remove(chargerId.toString());
+        chargerMapper.updateStatus(chargerId, ChargerStatus.IDLE);
 
         auditLogMapper.insert(AuditLog.builder()
                 .id(UUID.randomUUID())
+                .actorId(deviceUserId)
                 .actorType("device")
                 .action("UNPLUG")
                 .resource("charger")
                 .resourceId(chargerId)
                 .build());
 
-        log.info("Charger {} unplugged", chargerId);
+        log.info("Charger {} unplugged by deviceUser {}", chargerId, deviceUserId);
 
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("chargerId", chargerId.toString());
-        result.put("stoppedRecords", processingRecords.size());
+        result.put("stoppedRecords", stopped);
         result.put("message", "拔枪成功");
         return result;
     }

@@ -106,8 +106,10 @@ public class ChargingController {
 
     @PostMapping("/chargers/{id}/unplug")
     @PreAuthorize("hasAuthority('SCOPE_charger')")
-    public ResponseEntity<Map<String, Object>> unplug(@PathVariable UUID id) {
-        Map<String, Object> result = chargingService.unplug(id);
+    public ResponseEntity<Map<String, Object>> unplug(@PathVariable UUID id,
+                                                      @AuthenticationPrincipal JwtUserPrincipal principal) {
+        UUID deviceUserId = UUID.fromString(principal.getUserId());
+        Map<String, Object> result = chargingService.unplug(id, deviceUserId);
         return ResponseEntity.ok(result);
     }
 

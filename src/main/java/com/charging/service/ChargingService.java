@@ -16,7 +16,7 @@ public interface ChargingService {
     List<Map<String, Object>> queryCharges(UUID userId, String userRole, Map<String, String> params);
     int autoStopOnInsufficientBalance();
     Map<String, Object> plugIn(UUID chargerId, UUID deviceUserId);
-    Map<String, Object> unplug(UUID chargerId);
+    Map<String, Object> unplug(UUID chargerId, UUID deviceUserId);
     Map<String, Object> selectCharger(UUID chargerId, UUID userId, String sessionId);
     int forceStopByChargerId(UUID chargerId, String reason);
     List<Map<String, Object>> getActiveChargesWithChargerInfo(UUID userId);

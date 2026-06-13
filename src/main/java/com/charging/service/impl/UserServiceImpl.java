@@ -37,6 +37,16 @@ public class UserServiceImpl implements UserService {
     private final JwtTokenProvider jwtTokenProvider;
     private final PasswordHistoryMapper passwordHistoryMapper;
     private final PasswordEncoder passwordEncoder;
+    private final com.fasterxml.jackson.databind.ObjectMapper objectMapper;
+
+    private String toJson(Object obj) {
+        try {
+            return objectMapper.writeValueAsString(obj);
+        } catch (Exception e) {
+            log.error("Failed to convert to JSON", e);
+            return "{}";
+        }
+    }
 
     private static final String REFRESH_TOKEN_PREFIX = "refresh_token:";
     private static final String CAPTCHA_PREFIX = "captcha:";
@@ -506,10 +516,11 @@ public class UserServiceImpl implements UserService {
         auditLogMapper.insert(AuditLog.builder()
                 .id(UUID.randomUUID())
                 .actorId(userId)
-                .actorType("user")
+                .actorType(user.getRole() != null ? user.getRole().name().toLowerCase() : "user")
                 .action("UPDATE_PROFILE")
                 .resource("user")
                 .resourceId(userId)
+                .payload(toJson(Map.of("name", user.getName() != null ? user.getName() : "", "plateNumber", user.getPlateNumber() != null ? user.getPlateNumber() : "")))
                 .build());
 
         log.debug("updateProfile: returning user id={}, name={}, plateNumber={}", user.getId(), user.getName(), user.getPlateNumber());

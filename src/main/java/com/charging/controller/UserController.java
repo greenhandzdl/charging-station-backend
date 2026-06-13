@@ -129,7 +129,7 @@ public class UserController {
         result.put("name", updated.getName());
         result.put("phone", updated.getPhone());
         result.put("plateNumber", updated.getPlateNumber());
-        result.put("role", updated.getRole().name());
+        result.put("role", updated.getRole() != null ? updated.getRole().name() : "user");
         result.put("balance", updated.getBalance());
         return ResponseEntity.ok(result);
     }
