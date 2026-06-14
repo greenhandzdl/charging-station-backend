@@ -257,7 +257,13 @@ public class UserServiceImpl implements UserService {
 
         // Rotate: delete old, set new
         redisTemplate.delete(refreshKey);
-        String newAccessToken = jwtTokenProvider.generateAccessToken(userId, claims.get("role", String.class), null);
+        
+        // 从数据库查询用户的实际role，而不是从refresh token中读取（refresh token不包含role）
+        String role = userMapper.findById(UUID.fromString(userId))
+                .map(user -> user.getRole().name())
+                .orElseThrow(() -> BusinessException.unauthorized("用户不存在"));
+        
+        String newAccessToken = jwtTokenProvider.generateAccessToken(userId, role, null);
         String newRefreshToken = jwtTokenProvider.generateRefreshToken(userId);
         redisTemplate.opsForValue().set(refreshKey, newRefreshToken,
                 jwtTokenProvider.getRefreshTokenExpiration(), TimeUnit.MILLISECONDS);

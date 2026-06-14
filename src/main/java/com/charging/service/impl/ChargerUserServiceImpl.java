@@ -1,11 +1,16 @@
 package com.charging.service.impl;
 
+import com.charging.entity.AuditLog;
 import com.charging.entity.ChargerUser;
+import com.charging.entity.User;
+import com.charging.enums.UserRole;
 import com.charging.exception.BusinessException;
 import com.charging.infrastructure.dto.ChargerLoginRequest;
 import com.charging.infrastructure.dto.ChargerLoginResponse;
 import com.charging.infrastructure.security.ChargerTokenProvider;
+import com.charging.mapper.AuditLogMapper;
 import com.charging.mapper.ChargerUserMapper;
+import com.charging.mapper.UserMapper;
 import com.charging.service.ChargerUserService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -25,6 +30,8 @@ public class ChargerUserServiceImpl implements ChargerUserService {
     private final ChargerUserMapper chargerUserMapper;
     private final PasswordEncoder passwordEncoder;
     private final ChargerTokenProvider chargerTokenProvider;
+    private final UserMapper userMapper;
+    private final AuditLogMapper auditLogMapper;
 
     private static final long TOKEN_EXPIRATION_MS = 86400000L; // 24 hours
 
@@ -58,18 +65,37 @@ public class ChargerUserServiceImpl implements ChargerUserService {
         ChargerUser target = chargerUserMapper.findById(targetUserId)
                 .orElseThrow(() -> BusinessException.notFound("ChargerUser", targetUserId.toString()));
 
-        ChargerUser actor = chargerUserMapper.findById(actorId)
-                .orElseThrow(() -> BusinessException.unauthorized("操作者不存在"));
+        // Try charger_users first, then users table for ADMIN/SUPER_ADMIN
+        ChargerUser actor = chargerUserMapper.findById(actorId).orElse(null);
 
-        // Verify permission hierarchy: actor's level must be higher than target's
-        if (!canManage(actor.getPermissionLevel(), target.getPermissionLevel())) {
-            throw BusinessException.forbidden("权限不足：无法重置上级或同级身份的 token");
-        }
+        if (actor != null) {
+            // actor is in charger_users table — use existing permission hierarchy
+            if (!canManage(actor.getPermissionLevel(), target.getPermissionLevel())) {
+                throw BusinessException.forbidden("权限不足：无法重置上级或同级身份的 token");
+            }
+            if (!"STATION_GLOBAL".equals(actor.getPermissionLevel())
+                    && !isInAncestorChain(target, actorId)) {
+                throw BusinessException.forbidden("权限不足：只能重置所属下级身份的 token");
+            }
+        } else {
+            // actor not in charger_users — check users table for ADMIN/SUPER_ADMIN
+            User adminUser = userMapper.findById(actorId)
+                    .orElseThrow(() -> BusinessException.unauthorized("操作者不存在"));
 
-        // Verify parent chain: actor must be in target's ancestor chain or STATION_GLOBAL
-        if (!"STATION_GLOBAL".equals(actor.getPermissionLevel())
-                && !isInAncestorChain(target, actorId)) {
-            throw BusinessException.forbidden("权限不足：只能重置所属下级身份的 token");
+            UserRole role = adminUser.getRole();
+            if (role != UserRole.ADMIN && role != UserRole.SUPER_ADMIN) {
+                throw BusinessException.forbidden("权限不足：仅管理员及以上可重置充电桩/站 token");
+            }
+
+            // Record audit log for admin-initiated token reset
+            auditLogMapper.insert(AuditLog.builder()
+                    .id(UUID.randomUUID())
+                    .actorId(actorId)
+                    .actorType(role.name().toLowerCase())
+                    .action("RESET_CHARGER_TOKEN")
+                    .resource("charger_user")
+                    .resourceId(targetUserId)
+                    .build());
         }
 
         // Increment token version (invalidates all existing tokens)
@@ -81,10 +107,9 @@ public class ChargerUserServiceImpl implements ChargerUserService {
 
         String accessToken = buildToken(updated);
 
-        log.info("Token reset: targetId={}({}), actorId={}({}), newVersion={}",
+        log.info("Token reset: targetId={}({}), actorId={}, newVersion={}",
                 target.getId(), target.getPermissionLevel(),
-                actor.getId(), actor.getPermissionLevel(),
-                updated.getTokenVersion());
+                actorId, updated.getTokenVersion());
 
         return buildResponse(updated, accessToken);
     }

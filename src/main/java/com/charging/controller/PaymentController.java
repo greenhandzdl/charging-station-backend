@@ -11,6 +11,9 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -21,6 +24,7 @@ import java.util.UUID;
 public class PaymentController {
 
     private final PaymentService paymentService;
+    private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss");
 
     @PostMapping("/payments/recharge")
     @PreAuthorize("isAuthenticated()")
@@ -44,8 +48,31 @@ public class PaymentController {
     public ResponseEntity<List<Payment>> queryPayments(@RequestParam Map<String, String> params,
                                                        @AuthenticationPrincipal JwtUserPrincipal principal) {
         UUID userId = UUID.fromString(principal.getUserId());
-        List<Payment> payments = paymentService.queryPayments(userId, principal.getRole());
+        LocalDateTime startTime = parseDateTime(params.get("startTime"));
+        LocalDateTime endTime = parseDateTime(params.get("endTime"));
+        BigDecimal minAmount = parseBigDecimal(params.get("minAmount"));
+        BigDecimal maxAmount = parseBigDecimal(params.get("maxAmount"));
+        String status = params.get("status");
+        String keyword = params.get("keyword");
+        List<Payment> payments = paymentService.queryPayments(userId, principal.getRole(),
+                startTime, endTime, minAmount, maxAmount, status, keyword);
         return ResponseEntity.ok(payments);
+    }
+
+    @GetMapping("/payments/deductions")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<List<Payment>> queryDeductions(@RequestParam Map<String, String> params,
+                                                          @AuthenticationPrincipal JwtUserPrincipal principal) {
+        UUID userId = UUID.fromString(principal.getUserId());
+        LocalDateTime startTime = parseDateTime(params.get("startTime"));
+        LocalDateTime endTime = parseDateTime(params.get("endTime"));
+        BigDecimal minAmount = parseBigDecimal(params.get("minAmount"));
+        BigDecimal maxAmount = parseBigDecimal(params.get("maxAmount"));
+        String status = params.get("status");
+        String keyword = params.get("keyword");
+        List<Payment> deductions = paymentService.queryDeductions(userId, principal.getRole(),
+                startTime, endTime, minAmount, maxAmount, status, keyword);
+        return ResponseEntity.ok(deductions);
     }
 
     @GetMapping("/payments/pending")
@@ -81,5 +108,23 @@ public class PaymentController {
         String method = request.get("method").toString();
         paymentService.payArrears(userId, recordId, method);
         return ResponseEntity.ok(Map.of("message", "支付成功"));
+    }
+
+    private LocalDateTime parseDateTime(String value) {
+        if (value == null || value.isBlank()) return null;
+        try {
+            return LocalDateTime.parse(value, DATE_FMT);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private BigDecimal parseBigDecimal(String value) {
+        if (value == null || value.isBlank()) return null;
+        try {
+            return new BigDecimal(value);
+        } catch (Exception e) {
+            return null;
+        }
     }
 }

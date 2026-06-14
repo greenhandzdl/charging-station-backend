@@ -14,7 +14,7 @@ import java.util.UUID;
 public interface ChargeRecordMapper {
 
     @Insert("INSERT INTO charge_records (id, user_id, charger_id, start_time, status, deduction_status, created_at) " +
-            "VALUES (#{id}, #{userId}, #{chargerId}, NULL, 'PROCESSING', 'PENDING', now())")
+            "VALUES (#{id}, #{userId}, #{chargerId}, now(), 'PROCESSING', 'PENDING', now())")
     int insert(ChargeRecord record);
 
     @Update("UPDATE charge_records SET start_time = now() WHERE id = #{id} AND start_time IS NULL")

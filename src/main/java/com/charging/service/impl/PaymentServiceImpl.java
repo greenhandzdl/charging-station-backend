@@ -140,12 +140,25 @@ public class PaymentServiceImpl implements PaymentService {
     }
 
     @Override
-    public List<Payment> queryPayments(UUID userId, String userRole) {
+    public List<Payment> queryPayments(UUID userId, String userRole,
+                                        LocalDateTime startTime, LocalDateTime endTime,
+                                        BigDecimal minAmount, BigDecimal maxAmount,
+                                        String status, String keyword) {
         boolean isAdmin = "ADMIN".equals(userRole) || "SUPER_ADMIN".equals(userRole);
-        if (isAdmin) {
-            return paymentMapper.findAll();
-        }
-        return paymentMapper.findByUserId(userId);
+        UUID filterUserId = isAdmin ? null : userId;
+        return paymentMapper.findRechargesFiltered(filterUserId, startTime, endTime,
+                minAmount, maxAmount, status, keyword);
+    }
+
+    @Override
+    public List<Payment> queryDeductions(UUID userId, String userRole,
+                                          LocalDateTime startTime, LocalDateTime endTime,
+                                          BigDecimal minAmount, BigDecimal maxAmount,
+                                          String status, String keyword) {
+        boolean isAdmin = "ADMIN".equals(userRole) || "SUPER_ADMIN".equals(userRole);
+        UUID filterUserId = isAdmin ? null : userId;
+        return paymentMapper.findDeductionsFiltered(filterUserId, startTime, endTime,
+                minAmount, maxAmount, status, keyword);
     }
 
     @Override

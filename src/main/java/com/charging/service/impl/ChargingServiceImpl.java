@@ -313,6 +313,17 @@ public class ChargingServiceImpl implements ChargingService {
                 // Notify charger via connector
                 chargerConnector.notifyStop(charger.getChargerCode(), record.getId());
 
+                // Redis通知Flutter客户端（轮询 GET /charges/active 可感知）
+                if (redisTemplate != null) {
+                    String notifyKey = "offline:notify:" + record.getUserId();
+                    Map<String, Object> offlineData = new HashMap<>();
+                    offlineData.put("recordId", record.getId().toString());
+                    offlineData.put("chargerCode", charger.getChargerCode());
+                    offlineData.put("energyKwh", energyKwh);
+                    offlineData.put("fee", fee);
+                    redisTemplate.opsForValue().set(notifyKey, offlineData);
+                    redisTemplate.expire(notifyKey, java.time.Duration.ofMinutes(5));
+                }
                 auditLogMapper.insert(AuditLog.builder()
                         .id(UUID.randomUUID())
                         .actorId(record.getUserId())
@@ -553,12 +564,12 @@ public class ChargingServiceImpl implements ChargingService {
                     .id(UUID.randomUUID())
                     .actorId(adminId)
                     .actorType("admin")
-                    .action("FORCE_STOP_ARREARS")
-                    .resource("charge_record")
-                    .resourceId(recordId)
-                    .payload("{\"reason\": \"" + reason + "\", \"deductionStatus\": \"arrears\"}")
-                    .clientIp(clientIp)
-                    .build());
+                        .action("FORCE_STOP_ARREARS")
+                        .resource("charge_record")
+                        .resourceId(recordId)
+                        .payload("{\"reason\": \"" + reason + "\", \"deductionStatus\": \"arrears\"}")
+                        .clientIp(clientIp)
+                        .build());
         }
 
         // Release charger
@@ -636,15 +647,54 @@ public class ChargingServiceImpl implements ChargingService {
                 BigDecimal energyKwh = estimateEnergyKwh(charger.getType(), record.getStartTime());
                 BigDecimal fee = billingService.calculateFee(charger.getType(), energyKwh);
 
-                // 结束充电记录，标记为欠费（离线场景下无法正常扣费）
-                chargeRecordMapper.completeRecord(record.getId(), energyKwh, fee, "ARREARS");
-                userMapper.freezeAccount(record.getUserId());
+                // 检查用户余额并决定结算状态
+                User user = userMapper.findByIdWithLock(record.getUserId()).orElse(null);
+                boolean paid = false;
+                
+                if (user != null && user.getBalance().compareTo(fee) >= 0) {
+                    // 余额充足，尝试扣费
+                    int deductResult = userMapper.deductBalance(record.getUserId(), fee);
+                    if (deductResult > 0) {
+                        // 扣费成功，标记为PAID
+                        chargeRecordMapper.completeRecord(record.getId(), energyKwh, fee, "PAID");
+                        
+                        // 创建自动扣费记录
+                        paymentService.autoDeduct(record.getUserId(), fee, record.getId());
+                        
+                        paid = true;
+                        log.info("Force-stopped charge {} on offline charger {}, balance sufficient, deducted {}", 
+                                record.getId(), charger.getChargerCode(), fee);
+                    }
+                }
+                
+                if (!paid) {
+                    // 余额不足或扣费失败，标记为ARREARS
+                    chargeRecordMapper.completeRecord(record.getId(), energyKwh, fee, "ARREARS");
+                    if (user != null) {
+                        userMapper.freezeAccount(record.getUserId());
+                    }
+                    log.warn("Force-stopped charge {} on offline charger {}, insufficient balance, marked as ARREARS", 
+                            record.getId(), charger.getChargerCode());
+                }
+
                 int statusUpdated = chargerMapper.updateStatusConditionally(charger.getId(), "IDLE", "CHARGING");
                 if (statusUpdated == 0) {
                     log.warn("forceStopByChargerId: charger {} status was not CHARGING (already IDLE/FAULT), updating unconditionally", charger.getId());
                     chargerMapper.updateStatus(charger.getId(), ChargerStatus.IDLE);
                 }
                 chargerConnector.notifyStop(charger.getChargerCode(), record.getId());
+
+                // Redis通知Flutter客户端（轮询 GET /charges/active 可感知）
+                if (redisTemplate != null) {
+                    String notifyKey = "offline:notify:" + record.getUserId();
+                    Map<String, Object> offlineData = new HashMap<>();
+                    offlineData.put("recordId", record.getId().toString());
+                    offlineData.put("chargerCode", charger.getChargerCode());
+                    offlineData.put("energyKwh", energyKwh);
+                    offlineData.put("fee", fee);
+                    redisTemplate.opsForValue().set(notifyKey, offlineData);
+                    redisTemplate.expire(notifyKey, java.time.Duration.ofMinutes(5));
+                }
 
                 // 记录审计日志
                 auditLogMapper.insert(AuditLog.builder()
@@ -656,17 +706,7 @@ public class ChargingServiceImpl implements ChargingService {
                         .resourceId(record.getId())
                         .payload("{\"reason\": \"" + sanitizeReason(reason) + "\"}")
                         .build());
-                // 设置 Redis 离线通知，Flutter 可通过 GET /charges/active 轮询感知
-                if (redisTemplate != null) {
-                    String notifyKey = "offline:notify:" + record.getUserId();
-                    redisTemplate.opsForValue().set(notifyKey, Map.of(
-                            "recordId", record.getId().toString(),
-                            "chargerCode", charger.getChargerCode(),
-                            "energyKwh", energyKwh,
-                            "fee", fee
-                    ));
-                    redisTemplate.expire(notifyKey, java.time.Duration.ofMinutes(5));
-                }
+
                 stopped++;
                 log.warn("Force-stopped charge {} on offline charger {} (reason: {})",
                         record.getId(), charger.getChargerCode(), reason);
@@ -711,16 +751,16 @@ public class ChargingServiceImpl implements ChargingService {
         List<Map<String, Object>> result = new ArrayList<>();
         for (ChargeRecord record : activeRecords) {
             chargerMapper.findById(record.getChargerId()).ifPresent(charger -> {
-                result.add(Map.of(
-                        "recordId", record.getId().toString(),
-                        "chargerId", charger.getId().toString(),
-                        "chargerCode", charger.getChargerCode(),
-                        "type", charger.getType().name(),
-                        "ratedPowerKw", charger.getRatedPowerKw() != null ? charger.getRatedPowerKw().doubleValue() :
-                                (charger.getType() == com.charging.enums.ChargerType.FAST ? 60.0 : 7.0),
-                        "startTime", record.getStartTime() != null ? record.getStartTime().toString() : null,
-                        "status", record.getStatus().name()
-                ));
+                Map<String, Object> chargeInfo = new HashMap<>();
+                chargeInfo.put("recordId", record.getId().toString());
+                chargeInfo.put("chargerId", charger.getId().toString());
+                chargeInfo.put("chargerCode", charger.getChargerCode());
+                chargeInfo.put("type", charger.getType().name());
+                chargeInfo.put("ratedPowerKw", charger.getRatedPowerKw() != null ? charger.getRatedPowerKw().doubleValue() :
+                        (charger.getType() == com.charging.enums.ChargerType.FAST ? 60.0 : 7.0));
+                chargeInfo.put("startTime", record.getStartTime() != null ? record.getStartTime().toString() : null);
+                chargeInfo.put("status", record.getStatus().name());
+                result.add(chargeInfo);
             });
         }
         return result;

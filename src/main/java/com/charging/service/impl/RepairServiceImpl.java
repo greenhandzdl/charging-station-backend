@@ -91,6 +91,8 @@ public class RepairServiceImpl implements RepairService {
         String status = params.get("status");
         if (isAdminOrMaintainer) {
             repairs = (status != null) ? repairMapper.findByStatus(status) : repairMapper.findAll();
+            // Filter out soft-deleted repairs for management views
+            repairs.removeIf(r -> r.getStatus() == RepairStatus.DELETED);
         } else {
             repairs = repairMapper.findByReporterId(userId);
             if (status != null) {

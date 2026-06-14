@@ -45,7 +45,7 @@ public class UserController {
     }
 
     @PostMapping("/auth/refresh")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("permitAll()")
     public ResponseEntity<LoginResponse> refreshToken(@Valid @RequestBody RefreshTokenRequest request) {
         LoginResponse response = userService.refreshToken(request);
         return ResponseEntity.ok(response);
