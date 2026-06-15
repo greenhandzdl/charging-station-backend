@@ -9,6 +9,7 @@ import com.charging.mapper.ChargerMapper;
 import com.charging.mapper.RepairMapper;
 import com.charging.mapper.UserMapper;
 import com.charging.service.impl.RepairServiceImpl;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -46,7 +47,8 @@ class RepairServiceTest {
 
     @BeforeEach
     void setUp() {
-        repairService = new RepairServiceImpl(repairMapper, chargerMapper, auditLogMapper, chargerService, userMapper);
+        ObjectMapper objectMapper = new ObjectMapper();
+        repairService = new RepairServiceImpl(repairMapper, chargerMapper, auditLogMapper, chargerService, userMapper, objectMapper);
 
         repairId = UUID.randomUUID();
         chargerId = UUID.randomUUID();

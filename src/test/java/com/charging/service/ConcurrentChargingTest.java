@@ -16,6 +16,7 @@ import com.charging.service.impl.BillingServiceImpl;
 import com.charging.service.impl.ChargingServiceImpl;
 import com.charging.strategy.PeakPricing;
 import com.charging.strategy.StandardPricing;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -59,8 +60,9 @@ class ConcurrentChargingTest {
         var standardPricing = new StandardPricing();
         var peakPricing = new PeakPricing();
         var billingService = new BillingServiceImpl(standardPricing, peakPricing);
+        ObjectMapper objectMapper = new ObjectMapper();
         chargingService = new ChargingServiceImpl(chargerMapper, chargeRecordMapper, userMapper,
-                auditLogMapper, paymentService, billingService, chargerConnector);
+                auditLogMapper, paymentService, billingService, chargerConnector, objectMapper);
 
         setField(chargingService, "minBalance", new BigDecimal("10.00"));
 

@@ -257,13 +257,13 @@ class ChargingControllerTest {
     @Test
     void unplug_withValidChargerId_shouldReturn200() {
         Map<String, Object> result = Map.of("chargerId", chargerId.toString(), "stoppedRecords", 0, "message", "拔枪成功");
-        when(chargingService.unplug(chargerId)).thenReturn(result);
+        when(chargingService.unplug(chargerId, userId)).thenReturn(result);
 
-        ResponseEntity<Map<String, Object>> response = chargingController.unplug(chargerId);
+        ResponseEntity<Map<String, Object>> response = chargingController.unplug(chargerId, userPrincipal);
 
         assertEquals(200, response.getStatusCodeValue());
         assertEquals("拔枪成功", response.getBody().get("message"));
-        verify(chargingService).unplug(chargerId);
+        verify(chargingService).unplug(chargerId, userId);
     }
 
     @Test

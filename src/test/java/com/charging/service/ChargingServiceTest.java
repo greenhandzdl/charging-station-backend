@@ -15,6 +15,7 @@ import com.charging.infrastructure.connector.ChargerConnector;
 import com.charging.service.impl.ChargingServiceImpl;
 import com.charging.strategy.PeakPricing;
 import com.charging.strategy.StandardPricing;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -62,8 +63,9 @@ class ChargingServiceTest {
         StandardPricing standardPricing = new StandardPricing();
         PeakPricing peakPricing = new PeakPricing();
         billingService = new BillingServiceImpl(standardPricing, peakPricing);
+        ObjectMapper objectMapper = new ObjectMapper();
         chargingService = new ChargingServiceImpl(chargerMapper, chargeRecordMapper, userMapper,
-                auditLogMapper, paymentService, billingService, chargerConnector);
+                auditLogMapper, paymentService, billingService, chargerConnector, objectMapper);
 
         setField(chargingService, "minBalance", new BigDecimal("10.00"));
 
@@ -310,7 +312,7 @@ class ChargingServiceTest {
         when(chargerMapper.releaseForce(chargerId)).thenReturn(1);
         when(auditLogMapper.insert(any())).thenReturn(1);
 
-        Map<String, Object> result = chargingService.unplug(chargerId);
+        Map<String, Object> result = chargingService.unplug(chargerId, userId);
 
         assertNotNull(result);
         assertEquals("拔枪成功", result.get("message"));

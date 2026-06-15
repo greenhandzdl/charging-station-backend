@@ -9,6 +9,7 @@ import com.charging.mapper.AuditLogMapper;
 import com.charging.mapper.PasswordHistoryMapper;
 import com.charging.mapper.UserMapper;
 import com.charging.service.impl.UserServiceImpl;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -91,8 +92,9 @@ class UserServiceTest {
         jwtTokenProvider.init();
 
         RedisTemplate<String, Object> redisTemplate = new MockRedisTemplate(valueOperations);
+        ObjectMapper objectMapper = new ObjectMapper();
         userService = new UserServiceImpl(userMapper, auditLogMapper, redisTemplate,
-                jwtTokenProvider, passwordHistoryMapper, passwordEncoder);
+                jwtTokenProvider, passwordHistoryMapper, passwordEncoder, objectMapper);
 
         userId = UUID.randomUUID();
         targetUserId = UUID.randomUUID();

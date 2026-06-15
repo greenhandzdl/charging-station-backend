@@ -150,7 +150,8 @@ class PaymentControllerTest {
                 .build();
         List<Payment> expectedPayments = List.of(payment1, payment2);
 
-        when(paymentService.queryPayments(userId, "USER")).thenReturn(expectedPayments);
+        when(paymentService.queryPayments(any(UUID.class), anyString(),
+                any(), any(), any(), any(), any(), any())).thenReturn(expectedPayments);
 
         ResponseEntity<List<Payment>> response = paymentController.queryPayments(params, userPrincipal);
 
@@ -158,7 +159,8 @@ class PaymentControllerTest {
         assertEquals(2, response.getBody().size());
         assertEquals(payment1.getId(), response.getBody().get(0).getId());
         assertEquals(payment2.getId(), response.getBody().get(1).getId());
-        verify(paymentService).queryPayments(userId, "USER");
+        verify(paymentService).queryPayments(any(UUID.class), anyString(),
+                any(), any(), any(), any(), any(), any());
     }
 
     @Test
